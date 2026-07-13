@@ -6,6 +6,8 @@ import numpy as np
 import google.generativeai as genai
 from datetime import datetime, timedelta
 
+st.set_page_config(page_title="IICU-100", page_icon="🛰️", layout="wide")
+
 # --- [I. CONFIGURACIÓN DE IDENTIDAD Y MANIFIESTO] ---
 PILARES = {
     "1. La Mente": ["MSFT", "NVDA", "GOOGL", "AMZN", "TSM", "AVGO", "ASML", "AMD", "QCOM", "META", "SNOW", "PLTR", "MSTR", "INTC", "ARM", "KLAC", "AMAT", "CDNS", "PSTG", "ADBE"],
