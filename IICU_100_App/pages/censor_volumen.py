@@ -91,11 +91,18 @@ if ticker:
                 # --- ⚡ MATRIZ DE DECISIONES CUÁNTICAS IICU-100 ---
                 st.markdown("### ⚡ MATRIZ DE EJECUCIÓN COMBINADA")
                 
-                # LÓGICA DE CRUCE MATRICIAL
+                # Cálculo de la distancia porcentual al POC para el filtro de riesgo
+                distancia_al_poc = ((precio_actual - poc_promedio) / poc_promedio) * 100
+                
+                # LÓGICA DE CRUCE MATRICIAL CON FILTRO DE DISTANCIA CRÍTICA
                 if estado_maestro == "Soberano":
                     if estado_censor == "Ignición Latente":
-                        st.success("🎯 **VEREDICTO: COMPRA DE CONTINUACIÓN**")
-                        st.info("🧠 *Lectura:* El precio está en máximos pero descansando sin oferta (volumen decreciente). Consolidación muy sana en la parte alta. Añadir con Stop Loss ajustado.")
+                        if distancia_al_poc <= 7.0:
+                            st.success("🎯 **VEREDICTO: COMPRA DE CONTINUACIÓN**")
+                            st.info(f"🧠 *Lectura:* El precio está en máximos pero descansando cerca del soporte (a un {distancia_al_poc:.1f}% del POC). Consolidación sana en la parte alta. Añadir con Stop Loss ajustado.")
+                        else:
+                            st.warning("⚠️ **VEREDICTO: SOBERANO EXTENDIDO (No Perseguir)**")
+                            st.info(f"🧠 *Lectura:* Aunque mantiene la inercia alcista, el precio cotiza un {distancia_al_poc:.1f}% por encima de su POC anual (${poc_promedio:.2f}). Riesgo de corrección alto. Esperar un retroceso para optimizar ratio riesgo/beneficio.")
                     elif estado_censor == "Camino de la Paciencia":
                         st.warning("⚠️ **VEREDICTO: ESPERAR CONFIRMACIÓN**")
                         st.info("🧠 *Lectura:* Fuerza en el maestro pero el precio regresó al promedio de los fondos. El precio podría estancarse un tiempo antes de volver a arrancar.")
@@ -105,8 +112,12 @@ if ticker:
 
                 elif estado_maestro == "Radar":
                     if estado_censor == "Ignición Latente":
-                        st.success("🎯 **VEREDICTO: ¡COMPRA ÓPTIMA! (Máxima Eficiencia)**")
-                        st.info("🧠 *Lectura:* El precio cayó al soporte del POC anual y los vendedores desaparecieron por completo. Asimetría matemática inmejorable. Stop Loss milimétrico bajo el POC.")
+                        if distancia_al_poc <= 7.0:
+                            st.success("🎯 **VEREDICTO: ¡COMPRA ÓPTIMA! (Máxima Eficiencia)**")
+                            st.info(f"🧠 *Lectura:* El precio cayó cerca del soporte del POC anual (distancia segura del {distancia_al_poc:.1f}%) y los vendedores desaparecieron. Asimetría matemática inmejorable. Stop Loss milimétrico bajo el POC.")
+                        else:
+                            st.warning("⚠️ **VEREDICTO: ESTRUCTURA EXTENDIDA (No Perseguir)**")
+                            st.info(f"🧠 *Lectura:* Aunque la estructura de fondo es alcista, el precio cotiza un {distancia_al_poc:.1f}% por encima del POC anual (${poc_promedio:.2f}). El riesgo de caída técnica es muy profundo para una compra segura. Monitorear y esperar.")
                     elif estado_censor == "Camino de la Paciencia":
                         st.warning("⏳ **VEREDICTO: ACUMULACIÓN LENTA**")
                         st.info("🧠 *Lectura:* Estás comprando al mismo costo que el dinero inteligente. Riesgo bajísimo, pero el capital puede quedarse lateralizado semanas. Paciencia.")
@@ -116,8 +127,12 @@ if ticker:
 
                 elif estado_maestro == "Cruce de Urano":
                     if estado_censor == "Ignición Latente":
-                        st.success("🛰️ **VEREDICTO: ENTRADA PILOTO**")
-                        st.info("🧠 *Lectura:* El cruce de tendencia inicia sin volumen de venta en contra. Entrar con una posición pequeña (ej. 25%) para testear el cambio de dirección.")
+                        if distancia_al_poc <= 7.0:
+                            st.success("🛰️ **VEREDICTO: ENTRADA PILOTO**")
+                            st.info(f"🧠 *Lectura:* El cruce de tendencia inicia sin volumen de venta en contra y cerca del soporte de volumen. Entrar con posición pequeña (ej. 25%).")
+                        else:
+                            st.warning("⚠️ **VEREDICTO: GIRO EXTENDIDO (Esperar Testeo)**")
+                            st.info(f"🧠 *Lectura:* Hay intenciones de cambio de tendencia, pero el precio se disparó un {distancia_al_poc:.1f}% lejos del POC de acumulación. Esperar el 'throwback' (regreso) a la zona de valor.")
                     elif estado_censor == "Camino de la Paciencia":
                         st.success("🛰️ **VEREDICTO: ENTRADA DE GIRO DE ALTA CONVICCIÓN**")
                         st.info("🧠 *Lectura:* El cambio de ciclo ocurre exactamente encima del bloque de volumen anual. Confirmación del piso definitivo de mercado.")
@@ -169,4 +184,4 @@ if ticker:
             st.error(f"Error en la extracción de datos de mercado: {e}")
 
 st.markdown("---")
-st.caption("Filtro de volumen autónomo v2.0 - Matriz unificada de toma de decisiones cuánticas del IICU-100.")
+st.caption("Filtro de volumen autónomo v2.1 - Algoritmo refinado con evaluación de Distancia Crítica de Riesgo.")
