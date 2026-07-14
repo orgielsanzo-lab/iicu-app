@@ -20,7 +20,13 @@ st.subheader("Filtro de Segunda Línea para Activos SOBERANOS")
 st.write("Inserta el ticker detectado por el IICU-100 para diagnosticar su estructura de acumulación real.")
 
 # --- ENTRADA DE DATOS ---
-ticker = st.text_input("INGRESA EL TICKER (Ej: SMR, OKLO, MSFT):", "").upper().strip()
+col_ticker, col_maestro = st.columns(2)
+
+with col_ticker:
+    ticker = st.text_input("INGRESA EL TICKER:", "").upper().strip()
+
+with col_maestro:
+    estado_maestro = st.selectbox("ESTADO DEL PANEL MAESTRO:", ["Soberano", "Radar", "Cruce de Urano"])
 
 if ticker:
     with st.spinner(f"Analizando perfil de volumen para {ticker}..."):
@@ -37,22 +43,23 @@ if ticker:
                 volumenes = hist['Volume'].values
                 
                 # 1. CÁLCULO MATEMÁTICO DEL PERFIL DE VOLUMEN (POC)
-                # Dividimos el rango de precios del año en 20 zonas (bins)
                 counts, bin_edges = np.histogram(valores_precio, bins=20, weights=volumenes)
                 max_volume_bin_index = np.argmax(counts)
                 poc_inferior = bin_edges[max_volume_bin_index]
                 poc_superior = bin_edges[max_volume_bin_index + 1]
                 poc_promedio = (poc_inferior + poc_superior) / 2
                 
-                # Umbral de tolerancia del 1.5% para la zona de equilibrio
                 umbral = poc_promedio * 0.015
+                
+                # Definimos el estado del censor para la matriz
+                estado_censor = ""
                 
                 # 2. CLASIFICACIÓN DE CAMINOS Y RENDERIZADO DE RESULTADOS
                 st.markdown("---")
                 st.markdown(f"### 📊 Veredicto de Estructura para **{ticker}**")
                 
                 if precio_actual < (poc_promedio - umbral):
-                    # --- CAMINO DE DESGASTAMIENTO ---
+                    estado_censor = "Camino de Desgastamiento"
                     st.markdown(f"""
                     <div class="report-box" style="background-color: rgba(255, 0, 0, 0.1); border: 2px solid #FF3333;">
                         <h3 style="color: #FF3333; margin-top:0;">❌ CAMINO DE DESGASTAMIENTO (Descartar Inversión)</h3>
@@ -62,7 +69,7 @@ if ticker:
                     """, unsafe_allow_html=True)
                     
                 elif abs(precio_actual - poc_promedio) <= umbral:
-                    # --- CAMINO DE LA PACIENCIA ---
+                    estado_censor = "Camino de la Paciencia"
                     st.markdown(f"""
                     <div class="report-box" style="background-color: rgba(255, 165, 0, 0.1); border: 2px solid #FFA500;">
                         <h3 style="color: #FFA500; margin-top:0;">⏳ CAMINO DE LA PACIENCIA (Acumulación Lenta)</h3>
@@ -72,7 +79,7 @@ if ticker:
                     """, unsafe_allow_html=True)
                     
                 else:
-                    # --- CAMINO DE LA IGNICIÓN LATENTE ---
+                    estado_censor = "Ignición Latente"
                     st.markdown(f"""
                     <div class="report-box" style="background-color: rgba(0, 255, 170, 0.1); border: 2px solid #00FFAA;">
                         <h3 style="color: #00FFAA; margin-top:0;">🚀 IGNICIÓN LATENTE (Fase Altamente Eficiente)</h3>
@@ -80,12 +87,47 @@ if ticker:
                         <p><b>Estrategia:</b> Estructura óptima de continuación alcista. Las compras institucionales previas actúan como un trampolín sólido. Es la ventana de tiempo más eficiente para colocar capital.</p>
                     </div>
                     """, unsafe_allow_html=True)
+
+                # --- ⚡ MATRIZ DE DECISIONES CUÁNTICAS IICU-100 ---
+                st.markdown("### ⚡ MATRIZ DE EJECUCIÓN COMBINADA")
+                
+                # LÓGICA DE CRUCE MATRICIAL
+                if estado_maestro == "Soberano":
+                    if estado_censor == "Ignición Latente":
+                        st.success("🎯 **VEREDICTO: COMPRA DE CONTINUACIÓN**")
+                        st.info("🧠 *Lectura:* El precio está en máximos pero descansando sin oferta (volumen decreciente). Consolidación muy sana en la parte alta. Añadir con Stop Loss ajustado.")
+                    elif estado_censor == "Camino de la Paciencia":
+                        st.warning("⚠️ **VEREDICTO: ESPERAR CONFIRMACIÓN**")
+                        st.info("🧠 *Lectura:* Fuerza en el maestro pero el precio regresó al promedio de los fondos. El precio podría estancarse un tiempo antes de volver a arrancar.")
+                    elif estado_censor == "Camino de Desgastamiento":
+                        st.error("🛑 **VEREDICTO: TRAMPA DE MERCADO / DISTRIBUCIÓN**")
+                        st.info("🧠 *Lectura:* Alerta máxima. El maestro registra euforia pero las instituciones están vaciando inventario rompiendo el POC hacia abajo. ¡No tocar!")
+
+                elif estado_maestro == "Radar":
+                    if estado_censor == "Ignición Latente":
+                        st.success("🎯 **VEREDICTO: ¡COMPRA ÓPTIMA! (Máxima Eficiencia)**")
+                        st.info("🧠 *Lectura:* El precio cayó al soporte del POC anual y los vendedores desaparecieron por completo. Asimetría matemática inmejorable. Stop Loss milimétrico bajo el POC.")
+                    elif estado_censor == "Camino de la Paciencia":
+                        st.warning("⏳ **VEREDICTO: ACUMULACIÓN LENTA**")
+                        st.info("🧠 *Lectura:* Estás comprando al mismo costo que el dinero inteligente. Riesgo bajísimo, pero el capital puede quedarse lateralizado semanas. Paciencia.")
+                    elif estado_censor == "Camino de Desgastamiento":
+                        st.error("🛑 **VEREDICTO: EVITAR / ALERTA DE DESPLOME**")
+                        st.info("🧠 *Lectura:* Las instituciones abandonaron el activo en la zona fría. Si estás dentro y rompe el POC, ejecuta la salida de emergencia de inmediato.")
+
+                elif estado_maestro == "Cruce de Urano":
+                    if estado_censor == "Ignición Latente":
+                        st.success("🛰️ **VEREDICTO: ENTRADA PILOTO**")
+                        st.info("🧠 *Lectura:* El cruce de tendencia inicia sin volumen de venta en contra. Entrar con una posición pequeña (ej. 25%) para testear el cambio de dirección.")
+                    elif estado_censor == "Camino de la Paciencia":
+                        st.success("🛰️ **VEREDICTO: ENTRADA DE GIRO DE ALTA CONVICCIÓN**")
+                        st.info("🧠 *Lectura:* El cambio de ciclo ocurre exactamente encima del bloque de volumen anual. Confirmación del piso definitivo de mercado.")
+                    elif estado_censor == "Camino de Desgastamiento":
+                        st.error("🛑 **VEREDICTO: FALSO CRUCE (Trampa para Toros)**")
+                        st.info("🧠 *Lectura:* El precio amaga con cambiar de tendencia arriba pero los bloques reales muestran que se encuentra por debajo del interés mayoritario. Quedarse en liquidez.")
                 
                 # --- 3. GRÁFICO VISUAL DEL PERFIL DE VOLUMEN HORIZONTAL ---
-                # Creamos el histograma de volumen horizontal usando Plotly
                 fig = go.Figure()
                 
-                # Histograma horizontal (Barras de Volumen por Precio)
                 fig.add_trace(go.Bar(
                     y=[(bin_edges[i] + bin_edges[i+1])/2 for i in range(len(counts))],
                     x=counts,
@@ -94,7 +136,6 @@ if ticker:
                     marker=dict(color='rgba(0, 255, 170, 0.2)', line=dict(color='#00FFAA', width=1))
                 ))
                 
-                # Línea del Precio Actual
                 fig.add_trace(go.Scatter(
                     x=[0, max(counts)],
                     y=[precio_actual, precio_actual],
@@ -103,7 +144,6 @@ if ticker:
                     line=dict(color='#FF3388', width=3)
                 ))
                 
-                # Línea del POC Institucional
                 fig.add_trace(go.Scatter(
                     x=[0, max(counts)],
                     y=[poc_promedio, poc_promedio],
@@ -129,4 +169,4 @@ if ticker:
             st.error(f"Error en la extracción de datos de mercado: {e}")
 
 st.markdown("---")
-st.caption("Filtro de volumen autónomo v1.0 - Basado en la segmentación de acumulación por densidad de ticks.")
+st.caption("Filtro de volumen autónomo v2.0 - Matriz unificada de toma de decisiones cuánticas del IICU-100.")
