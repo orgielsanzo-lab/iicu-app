@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from scipy.stats import linregress
 
 # --- CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Censor de Volumen - IICU-100", layout="centered")
@@ -26,7 +27,7 @@ st.write("Inserta el ticker detectado por el IICU-100 para diagnosticar su estru
 def obtener_datos_mercado(ticker_symbol):
     try:
         asset = yf.Ticker(ticker_symbol)
-        # Extraemos 1 año y medio de datos para asegurar el cálculo limpio de las métricas de 200 días
+        # Extraemos 2 años de datos para asegurar el cálculo limpio de las métricas de 200 días
         df = asset.history(period="2y")
         if df.empty:
             return None
@@ -36,14 +37,27 @@ def obtener_datos_mercado(ticker_symbol):
         return None
 
 # Función matemática auxiliar para calcular el POC ponderado por volumen en un segmento
-def calcular_poc_segmento(df_slice, bins=20):
-    if len(df_slice) < bins:
-        return df_slice['Close'].mean()  # Salvaguarda para ventanas muy pequeñas
-    valores = df_slice['Close'].values
-    volumenes = df_slice['Volume'].values
-    counts, bin_edges = np.histogram(valores, bins=bins, weights=volumenes)
-    max_volume_bin_index = np.argmax(counts)
-    return (bin_edges[max_volume_bin_index] + bin_edges[max_volume_bin_index + 1]) / 2
+def calcular_poc_segmento(df_slice, bins=50):
+    if df_slice.empty:
+        return np.nan
+    
+    price_min = df_slice['Low'].min()
+    price_max = df_slice['High'].max()
+    
+    if price_min == price_max:
+        return price_min
+        
+    counts, bin_edges = np.histogram(
+        df_slice['Close'], 
+        bins=bins, 
+        range=(price_min, price_max), 
+        weights=df_slice['Volume']
+    )
+    
+    # El bin con mayor volumen acumulado es el POC
+    max_idx = np.argmax(counts)
+    poc = (bin_edges[max_idx] + bin_edges[max_idx + 1]) / 2
+    return poc
 
 # --- ENTRADA DE DATOS SINCRO-ESTADOS ---
 col_ticker, col_maestro = st.columns(2)
@@ -71,41 +85,44 @@ if ticker:
         if df_completo is None or len(df_completo) < 200:
             st.error("❌ Datos insuficientes o incorrectos. Se requieren al menos 200 días de historial de cotización.")
         else:
-            # Rebanadas temporales para el análisis
+            # Rebanadas temporales estrictas para el análisis
             df_200 = df_completo.iloc[-200:]
             df_100 = df_completo.iloc[-100:]
             df_20 = df_completo.iloc[-20:]
             
-            precio_actual = df_completo['Close'].iloc[-1]
+            precio_actual = float(df_completo['Close'].iloc[-1])
             
-            # 1. CÁLCULO DE PUNTOS DE CONTROL (POC)
-            poc_anual = calcular_poc_segmento(df_200, bins=20)   # POC_200 (Muro institucional de mediano plazo)
-            poc_local = calcular_poc_segmento(df_20, bins=10)    # POC_20 (Ventana estrecha de acumulación)
+            # 1. CÁLCULO DE PUNTOS DE CONTROL (POC) BASADO EN BINS REALES DE PRECIO/VOLUMEN
+            poc_anual = float(calcular_poc_segmento(df_200, bins=50))   # POC_200 (Muro institucional)
+            poc_local = float(calcular_poc_segmento(df_20, bins=50))    # POC_20 (Ventana de acumulación local)
             
             # 2. CÁLCULO DE RATIO DE VOLUMEN RELATIVO (RVOL)
             vol_prom_20 = df_20['Volume'].mean()
             vol_prom_100 = df_100['Volume'].mean()
-            rvol = vol_prom_20 / vol_prom_100 if vol_prom_100 > 0 else 1.0
+            rvol = float(vol_prom_20 / vol_prom_100) if vol_prom_100 > 0 else 1.0
             
-            # 3. CÁLCULO DEL ON-BALANCE VOLUME (OBV) Y SU TENDENCIA LOCAL
+            # 3. CÁLCULO DEL ON-BALANCE VOLUME (OBV) Y SU TENDENCIA CON REGRESIÓN LINEAL (SCIPY)
             df_completo['OBV'] = (np.sign(df_completo['Close'].diff()) * df_completo['Volume']).fillna(0).cumsum()
             obv_local = df_completo['OBV'].iloc[-20:].values
-            # Evaluar si el OBV es ascendente mediante regresión lineal simple (pendiente positiva)
+            
+            # Usamos Scipy Linregress para calcular la pendiente exacta del OBV local de 20 días
             x_range = np.arange(len(obv_local))
-            obv_slope = np.polyfit(x_range, obv_local, 1)[0]
-            obv_ascendente = obv_slope > 0
+            slope, _, _, _, _ = linregress(x_range, obv_local)
+            obv_ascendente = slope > 0
             
-            # 4. CONDICIONALES DE CONFLUENCIA DE LA FISICA DE LA OLLA
+            # 4. CONDICIONALES DE CONFLUENCIA DE LA FISICA DE LA OLLA (MICROESTRUCTURA)
             bajo_poc_anual = precio_actual < poc_anual
-            sostiene_poc_local = precio_actual >= (poc_local * 0.985)  # Tolerancia del 1.5% del soporte local
-            rvol_alto = rvol >= 1.2  # Un 20% o más de incremento de volumen promedio local vs mediano plazo
+            sostiene_poc_local = precio_actual >= (poc_local * 0.985)  # Tolerancia del 1.5%
+            rvol_alto = rvol >= 1.2
             
-            # Mutación del veredicto basado en la confluencia física
+            # Clasificación matemática e inequívoca de estados del Censor
             if bajo_poc_anual:
                 if sostiene_poc_local and rvol_alto and obv_ascendente:
                     estado_censor = "Giro Detectado / Olla Reconstruida"
-                else:
+                elif not sostiene_poc_local and rvol_alto:
                     estado_censor = "Camino de Desgastamiento / Olla Agujerada"
+                else:
+                    estado_censor = "Camino de Desgastamiento / Olla Agujerada"  # Fallback si no hay soporte ni volumen acumulativo
             else:
                 # Estructuras por encima de la zona de gravedad institucional
                 distancia_poc_anual = ((precio_actual - poc_anual) / poc_anual) * 100
@@ -131,8 +148,9 @@ if ticker:
                 st.markdown(f"""
                 <div class="report-box" style="background-color: rgba(255, 0, 0, 0.1); border: 2px solid #FF3333;">
                     <h3 style="color: #FF3333; margin-top:0;">❌ OLLA AGUJERADA / CAMINO DE DESGASTAMIENTO</h3>
-                    <p><b>Diagnóstico:</b> El precio (<b>${precio_actual:.2f}</b>) está por debajo del POC Anual (<b>${poc_anual:.2f}</b>) sin respaldo de volumen local (RVOL: <b>{rvol:.2f}x</b>) o con el OBV perdiendo fuerza.</p>
-                    <p><b>Riesgo:</b> Las instituciones no están absorbiendo la oferta en estos niveles. El soporte ha cedido. <b>Entrada Estrictamente Prohibida</b>.</p>
+                    <p><b>Diagnóstico (Foco en Pánico):</b> El precio (<b>${precio_actual:.2f}</b>) cotiza en zona de pánico, por debajo del POC Anual (<b>${poc_anual:.2f}</b>).</p>
+                    <p><b>Microestructura:</b> El soporte del POC Local de 20 días (<b>${poc_local:.2f}</b>) ha sido perforado o carece de la acumulación necesaria (RVOL: <b>{rvol:.2f}x</b>, Pendiente OBV: {'Positiva' if obv_ascendente else 'Negativa'}).</p>
+                    <p><b>Riesgo:</b> Las instituciones no están absorbiendo la oferta en estos niveles. Distribución o liquidación activa. <b>Entrada Estrictamente Prohibida</b>.</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -140,7 +158,8 @@ if ticker:
                 st.markdown(f"""
                 <div class="report-box" style="background-color: rgba(0, 255, 170, 0.1); border: 2px solid #00FFAA;">
                     <h3 style="color: #00FFAA; margin-top:0;">🛠️ GIRO DETECTADO / OLLA RECONSTRUIDA</h3>
-                    <p><b>Diagnóstico:</b> Aunque el precio cotiza bajo el POC Anual (<b>${poc_anual:.2f}</b>), se sostiene firmemente sobre el POC Local (<b>${poc_local:.2f}</b>) con un RVOL institucional elevado de <b>{rvol:.2f}x</b> y flujo monetario OBV ascendente.</p>
+                    <p><b>Diagnóstico (Foco en Absorción):</b> El precio cotiza bajo el POC Anual de 200 días (<b>${poc_anual:.2f}</b>) en zona de pánico controlado.</p>
+                    <p><b>Microestructura:</b> El precio se sostiene firmemente sobre el POC Local de 20 días (<b>${poc_local:.2f}</b>) con un RVOL institucional inusual de <b>{rvol:.2f}x</b> (superior a 1.2x) y flujo monetario OBV acumulativo (pendiente de regresión positiva).</p>
                     <p><b>Oportunidad:</b> Fase de acumulación agresiva oculta (esfuerzo de absorción institucional). Se autorizan <b>compras escalonadas en la base</b>.</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -169,7 +188,7 @@ if ticker:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # --- MATRIZ DE DECISIONES COMBINADA DE CONFLUENCIA ---
+            # --- ⚡ MATRIZ DE DECISIONES COMBINADA DE CONFLUENCIA ---
             st.markdown("### ⚡ MATRIZ DE EJECUCIÓN COMBINADA")
             
             # [1] 🔥 CRUCE DE URANO
@@ -237,7 +256,15 @@ if ticker:
             fig = go.Figure()
             
             # Histograma del perfil anual de volumen (200 días)
-            counts_200, bin_edges_200 = np.histogram(df_200['Close'].values, bins=20, weights=df_200['Volume'].values)
+            price_min_200 = df_200['Low'].min()
+            price_max_200 = df_200['High'].max()
+            counts_200, bin_edges_200 = np.histogram(
+                df_200['Close'].values, 
+                bins=50, 
+                range=(price_min_200, price_max_200), 
+                weights=df_200['Volume'].values
+            )
+            
             fig.add_trace(go.Bar(
                 y=[(bin_edges_200[i] + bin_edges_200[i+1])/2 for i in range(len(counts_200))],
                 x=counts_200,
@@ -287,4 +314,4 @@ if ticker:
             st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-st.caption("Filtro de volumen autónomo v4.2.0 - Motor de confluencia física 'Olla de Presión & Reconstruida' diseñado por téchnē.")
+st.caption("Filtro de volumen autónomo v4.3.0 - Motor de confluencia física 'Olla de Presión & Reconstruida' diseñado por téchnē.")
