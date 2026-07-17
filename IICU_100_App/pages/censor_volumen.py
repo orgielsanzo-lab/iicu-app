@@ -84,6 +84,7 @@ def calcular_fpc(ticker):
 
 def censor_de_urano(pilar_actual, candidatos_externos):
     propuestas_sustitucion = []
+    # Aseguramos que busque la columna exacta "FPC (Peso)"
     nodos_con_fpc = [n for n in pilar_actual if n.get("FPC (Peso)") is not None]
     if not nodos_con_fpc:
         return []
@@ -96,6 +97,7 @@ def censor_de_urano(pilar_actual, candidatos_externos):
 
         fpc_aspirante = calcular_fpc(aspirante)
 
+        # CORRECCIÓN: Cambiado "FPC" por "FPC (Peso)" para matchear el diccionario
         if (fpc_aspirante > (peor_nodo["FPC (Peso)"] * 1.20) or peor_nodo["FPC (Peso)"] < 10.0):
             propuestas_sustitucion.append({
                 "SALE": peor_nodo["Sigla"],
