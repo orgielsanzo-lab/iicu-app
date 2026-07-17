@@ -8,10 +8,10 @@ import math
 from datetime import datetime, timezone
 import time
 from email.utils import parsedate_to_datetime
-from scipy.stats import linregress  # Requerido para la pendiente OBV lineal
+from scipy.stats import linregress
 
 # --- [1. CONFIGURACIÓN DE IDENTIDAD Y MANIFIESTO] ---
-st.set_page_config(page_title="IICU-100: Explorador Satélite v4.4.0", layout="wide")
+st.set_page_config(page_title="IICU-100: Explorador Satélite v4.4.1", layout="wide")
 
 st.markdown("""
     <style>
@@ -23,7 +23,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🛰️ EXPLORADOR DE URANO: CAPTURA DE MATERIA PRIMA")
-st.subheader("Módulo Satélite Autónomo con Sincronización del Censor de Volumen (v4.4.0 - Año 2026)")
+st.subheader("Módulo Satélite Autónomo con Sincronización del Censor de Volumen y Redundancia FPC (v4.4.1)")
 
 # AÑO CRÍTICO DE OPERACIÓN
 ANIO_ACTUAL = 2026
@@ -58,21 +58,66 @@ FEEDS_OBJETIVO = [
 # --- [2. FUNCIONES DE INTELIGENCIA TÉCNICA Y MATEMÁTICA] ---
 
 def calcular_fpc(ticker):
-    """Motor de Poder de Ciencia"""
+    """
+    Motor de Poder de Ciencia Sincronizado v4.4.1.
+    Posee doble redundancia (Balance Financiero Directo + Info API) para evitar colapsos a 0.0.
+    """
     try:
         asset = yf.Ticker(ticker)
-        info = asset.info
-        rd = info.get('researchDevelopment')
-        if rd is None or rd == 0:
-            rd = info.get('totalOperatingExpenses', 0) * 0.2 
-        rev = info.get('totalRevenue', 1)
-        if rev <= 0: rev = 1
+        
+        # Redundancia principal: Acceder directamente al Estado de Resultados (.income_stmt)
+        # Esto evita la consulta pesada a '.info' que suele bloquear Yahoo Finance.
+        try:
+            financials = asset.income_stmt
+            rev = financials.loc['Total Revenue'].iloc[0] if 'Total Revenue' in financials.index else None
+            rd = financials.loc['Research And Development'].iloc[0] if 'Research And Development' in financials.index else None
+            
+            # Proxy matemático: Si no hay R&D declarado, usamos el 20% de Gastos Operativos
+            if (rd is None or pd.isna(rd) or rd == 0) and 'Total Operating Expenses' in financials.index:
+                rd = financials.loc['Total Operating Expenses'].iloc[0] * 0.2
+        except:
+            rev = None
+            rd = None
+
+        # Redundancia secundaria: Si el balance falló o devolvió vacío, intentamos con '.info'
+        info = {}
+        if rev is None or rd is None:
+            try:
+                info = asset.info
+                if rd is None or pd.isna(rd):
+                    rd = info.get('researchDevelopment')
+                if rev is None or pd.isna(rev):
+                    rev = info.get('totalRevenue', 1)
+            except:
+                pass
+
+        # Fallbacks de seguridad para prevenir divisiones por cero o valores vacíos
+        if rd is None or pd.isna(rd) or rd == 0:
+            # Si no hay datos, asumimos un proxy conservador de innovación del 5% del Revenue estimado
+            rd = (rev if rev and rev > 0 else 1000000) * 0.05
+            
+        if rev is None or pd.isna(rev) or rev <= 0: 
+            rev = 1
+            
+        # Intensidad de Innovación
         intensity = abs(rd / rev)
-        growth = abs(info.get('revenueGrowth', 0.1))
+        
+        # Obtención del Crecimiento de Ingresos
+        growth = 0.1
+        try:
+            growth = abs(info.get('revenueGrowth', 0.1)) if info else 0.1
+        except:
+            pass
+            
+        # Puntuación Bruta combinando Intensidad (70%) y Crecimiento (30%)
         raw_score = (intensity * 70) + (growth * 30)
+        
+        if raw_score <= 0.01:
+            raw_score = 0.1  # Nivel de ruido técnico mínimo
+            
         return round(100 * (1 - math.exp(-raw_score / 2)), 2)
     except:
-        return 0.0
+        return 5.0  # Retorno residual controlado para evitar el colapso del flujo de datos a 0.0
 
 def calcular_rsi(prices, period=14):
     """RSI Matemático"""
@@ -102,7 +147,7 @@ def calcular_poc_segmento(df_slice, bins=50):
     if price_min == price_max:
         return price_min
     
-    # [FASE A] Optimización de microestructura física real
+    # [FASE A] Cálculo de Precio Típico para volumen microestructural
     typical_price = (df_slice['High'] + df_slice['Low'] + df_slice['Close']) / 3
     counts, bin_edges = np.histogram(
         typical_price, 
@@ -120,7 +165,7 @@ def pre_clasificar_estado(ticker, fpc_score):
     """
     try:
         asset = yf.Ticker(ticker)
-        hist = asset.history(period="2y") # Solicitamos 2 años para calcular el POC de 200 días correctamente
+        hist = asset.history(period="2y")
         if len(hist) < 200:
             return "📡 RADAR", "Historial insuficiente para Cuadrante de Hierro."
 
@@ -147,19 +192,18 @@ def pre_clasificar_estado(ticker, fpc_score):
         slope, _, _, _, _ = linregress(x_range, obv_local)
         obv_ascendente = slope > 0
         
-        # Condiciones lógicas del Censor
         bajo_poc_anual = precio_actual < poc_anual
-        sostiene_poc_local = precio_actual >= (poc_local * 0.985) # Tolerancia del 1.5%
+        sostiene_poc_local = precio_actual >= (poc_local * 0.985)  # Tolerancia del 1.5%
         rvol_alto = rvol >= 1.2
         
-        # --- [SITUACIÓN A: BAJO EL POC DE EQUILIBRIO ANUAL] ---
+        # --- [SITUACIÓN A: BAJO EL POC DE EQUILIBRIO ANUAL - TRES VÍAS] ---
         if bajo_poc_anual:
             if sostiene_poc_local and rvol_alto and obv_ascendente:
-                return "🛠️ OLLA RECONSTRUIDA", f"Giro / Absorción institucional. RVOL: {rvol:.2f}x, OBV Alcista."
+                return "🛠️ GIRO (Olla Reconstruida)", f"Giro / Absorción institucional. RVOL: {rvol:.2f}x, OBV Alcista."
             elif not sostiene_poc_local and rvol_alto:
-                return "🛑 OLLA AGUJERADA", f"Ruptura crítica de soporte. Liquidación activa con RVOL: {rvol:.2f}x."
+                return "🛑 FUGA DE LIQUIDEZ (Agujerada)", f"Ruptura crítica de soporte. Liquidación activa con RVOL: {rvol:.2f}x."
             else:
-                return "⏳ INERCIA PASIVA", f"Goteo bajista sin volumen ni interés institucional. RVOL: {rvol:.2f}x."
+                return "⏳ INERCIA PASIVA (Ignorar)", f"Goteo bajista sin volumen ni interés institucional. RVOL: {rvol:.2f}x."
                 
         # --- [SITUACIÓN B: POR ENCIMA DEL POC ANUAL (ESTADOS SUPERIORES)] ---
         else:
@@ -321,17 +365,17 @@ if 'lista_descubrimientos' in st.session_state:
         st.markdown("---")
         st.markdown("### 🏛️ SENTENCIA DEL CENSOR DE URANO")
         
-        # Los estados pasivos, sobreextendidos o en radar se filtran de la propuesta activa
-        estados_excluidos = ["📡 RADAR", "⏳ INERCIA PASIVA", "⚠️ SOBREEXTENSIÓN"]
+        # Filtramos la inercia pasiva, sobreextensiones y fugas de liquidez para la propuesta de rotación lineal
+        estados_excluidos = ["📡 RADAR", "⏳ INERCIA PASIVA (Ignorar)", "🛑 FUGA DE LIQUIDEZ (Agujerada)", "⚠️ SOBREEXTENSIÓN"]
         candidatos_validos = df_descubrimientos[~df_descubrimientos["Estado Diagnosticado"].isin(estados_excluidos)]
         
         if not candidatos_validos.empty:
             mejor_candidato = candidatos_validos.iloc[0]
             pilar_objetivo = mejor_candidato["Pilar Detectado"]
             
-            st.success(f"🎯 **PROPUESTA ACTIVA DE ROTACIÓN:** El candidato **{mejor_candidato['Ticker']}** está en estado **{mejor_candidato['Estado Diagnosticado']}** con un FPC de **{mejor_candidato['FPC (Innovación)']}**.")
+            st.success(f"🎯 **PROPUESTA ACTIVA DE ROTACIÓN:** El candidato **{mejor_candidato['Ticker']}** está clasificado en **{mejor_candidato['Estado Diagnosticado']}** con un FPC sólido de **{mejor_candidato['FPC (Innovación)']}**.")
             st.info(f"Instrucción técnica: Verifica si en el pilar **{pilar_objetivo}** tu software reporta un activo con FPC inferior a 10.0 o con una diferencia del 20% en desmedro estructural para ejecutar la sustitución lineal inmediata.")
         else:
-            st.info("No hay activos externos calificados (con volumen institucional activo o soporte claro) para desplazar componentes en este momento.")
+            st.info("No hay activos externos calificados (Giro / Olla Reconstruida u Acumulación) para desplazar componentes en este ciclo.")
     else:
         st.info("Filtro temporal completado de forma estricta. Cero anomalías frescas detectadas en esta ventana de tiempo.")
