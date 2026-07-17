@@ -8,9 +8,10 @@ import math
 from datetime import datetime, timezone
 import time
 from email.utils import parsedate_to_datetime
+from scipy.stats import linregress  # Requerido para la pendiente OBV lineal
 
 # --- [1. CONFIGURACIÓN DE IDENTIDAD Y MANIFIESTO] ---
-st.set_page_config(page_title="IICU-100: Explorador Satélite v3.9.5", layout="wide")
+st.set_page_config(page_title="IICU-100: Explorador Satélite v4.4.0", layout="wide")
 
 st.markdown("""
     <style>
@@ -22,7 +23,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🛰️ EXPLORADOR DE URANO: CAPTURA DE MATERIA PRIMA")
-st.subheader("Módulo Satélite Autónomo con Blindaje Temporal Anti-Latencia (Año Actual: 2026)")
+st.subheader("Módulo Satélite Autónomo con Sincronización del Censor de Volumen (v4.4.0 - Año 2026)")
 
 # AÑO CRÍTICO DE OPERACIÓN
 ANIO_ACTUAL = 2026
@@ -92,39 +93,88 @@ def calcular_rsi(prices, period=14):
         rsi[i] = 100. - 100. / (1. + rs)
     return rsi[-1]
 
+def calcular_poc_segmento(df_slice, bins=50):
+    """Calcula el Point of Control (POC) utilizando el Precio Típico (High+Low+Close)/3"""
+    if df_slice.empty:
+        return np.nan
+    price_min = df_slice['Low'].min()
+    price_max = df_slice['High'].max()
+    if price_min == price_max:
+        return price_min
+    
+    # [FASE A] Optimización de microestructura física real
+    typical_price = (df_slice['High'] + df_slice['Low'] + df_slice['Close']) / 3
+    counts, bin_edges = np.histogram(
+        typical_price, 
+        bins=bins, 
+        range=(price_min, price_max), 
+        weights=df_slice['Volume']
+    )
+    max_idx = np.argmax(counts)
+    return (bin_edges[max_idx] + bin_edges[max_idx + 1]) / 2
+
 def pre_clasificar_estado(ticker, fpc_score):
-    """Mapeo a los 5 Estados de Poder del Cuadrante de Hierro"""
+    """
+    Mapeo Sincronizado a Microestructura de 3 Vías bajo el POC Anual
+    e Intervalos Superiores del Cuadrante de Hierro.
+    """
     try:
         asset = yf.Ticker(ticker)
-        hist = asset.history(period="1y")
+        hist = asset.history(period="2y") # Solicitamos 2 años para calcular el POC de 200 días correctamente
         if len(hist) < 200:
             return "📡 RADAR", "Historial insuficiente para Cuadrante de Hierro."
 
-        close_prices = hist['Close'].values
-        volumes = hist['Volume'].values
-        precio_actual = close_prices[-1]
-        sma_200 = np.mean(close_prices[-200:])
-        sma_50 = np.mean(close_prices[-50:])
-        rsi_14 = calcular_rsi(close_prices, 14)
+        hist = hist.dropna(subset=['Close', 'Volume', 'High', 'Low'])
         
-        ratio_vol = volumes[-1] / np.mean(volumes[-20:]) if np.mean(volumes[-20:]) > 0 else 1.0
-        obv_creciente = close_prices[-1] > close_prices[-5]
-
-        # Condicionales estrictas por Tabla de Estados
-        if precio_actual > sma_200 and (ratio_vol >= 1.8 or rsi_14 > 70):
-            return "🔥 CRUCE DE URANO", f"Ignición inminente ({ratio_vol:.1f}x volumen, RSI: {rsi_14:.1f})."
-        if precio_actual > sma_200 and rsi_14 < 36 and fpc_score > 85:
-            return "🛡️ SACUDIDA INSTITUCIONAL", f"Caza de liquidez en soporte macro. RSI: {rsi_14:.1f}."
-        if precio_actual > sma_200 and sma_50 > sma_200 and rsi_14 < 35 and obv_creciente:
-            return "💎 SOBERANO", f"Fuerza estructural óptima. RSI frío ({rsi_14:.1f})."
-        if fpc_score > 95 and (35 <= rsi_14 <= 48) and abs(precio_actual - sma_50)/sma_50 < 0.05:
-            return "⚡ OLLA DE PRESIÓN", f"Acumulación silenciosa activa. RSI: {rsi_14:.1f}."
-        if precio_actual > sma_200 and fpc_score > 90 and (60 <= rsi_14 <= 68):
-            return "🚀 MOMENTUM TEMPRANO", f"Saliendo de base técnica rápida. RSI: {rsi_14:.1f}."
-
-        return "📡 RADAR", f"Latencia estándar de mercado. RSI: {rsi_14:.1f}."
-    except:
-        return "📡 RADAR", "Falla de diagnóstico en API de mercado."
+        df_200 = hist.iloc[-200:]
+        df_20 = hist.iloc[-20:]
+        
+        precio_actual = float(hist['Close'].iloc[-1])
+        
+        # Calcular POCs usando el Precio Típico de la Fase A
+        poc_anual = float(calcular_poc_segmento(df_200, bins=50))
+        poc_local = float(calcular_poc_segmento(df_20, bins=50))
+        
+        # Relación de Volumen Relativo (RVOL)
+        vol_prom_20 = df_20['Volume'].mean()
+        vol_prom_100 = hist.iloc[-100:]['Volume'].mean()
+        rvol = float(vol_prom_20 / vol_prom_100) if vol_prom_100 > 0 else 1.0
+        
+        # Cálculo de Tendencia OBV via Regresión Lineal
+        hist['OBV'] = (np.sign(hist['Close'].diff()) * hist['Volume']).fillna(0).cumsum()
+        obv_local = hist['OBV'].iloc[-20:].values
+        x_range = np.arange(len(obv_local))
+        slope, _, _, _, _ = linregress(x_range, obv_local)
+        obv_ascendente = slope > 0
+        
+        # Condiciones lógicas del Censor
+        bajo_poc_anual = precio_actual < poc_anual
+        sostiene_poc_local = precio_actual >= (poc_local * 0.985) # Tolerancia del 1.5%
+        rvol_alto = rvol >= 1.2
+        
+        # --- [SITUACIÓN A: BAJO EL POC DE EQUILIBRIO ANUAL] ---
+        if bajo_poc_anual:
+            if sostiene_poc_local and rvol_alto and obv_ascendente:
+                return "🛠️ OLLA RECONSTRUIDA", f"Giro / Absorción institucional. RVOL: {rvol:.2f}x, OBV Alcista."
+            elif not sostiene_poc_local and rvol_alto:
+                return "🛑 OLLA AGUJERADA", f"Ruptura crítica de soporte. Liquidación activa con RVOL: {rvol:.2f}x."
+            else:
+                return "⏳ INERCIA PASIVA", f"Goteo bajista sin volumen ni interés institucional. RVOL: {rvol:.2f}x."
+                
+        # --- [SITUACIÓN B: POR ENCIMA DEL POC ANUAL (ESTADOS SUPERIORES)] ---
+        else:
+            close_prices = hist['Close'].values
+            rsi_14 = calcular_rsi(close_prices, 14)
+            distancia_poc_anual = ((precio_actual - poc_anual) / poc_anual) * 100
+            
+            if distancia_poc_anual <= 5.0:
+                return "🟢 ACUMULACIÓN SEGURA", f"En soporte de equilibrio macro. RSI: {rsi_14:.1f}."
+            elif 5.0 < distancia_poc_anual <= 12.0:
+                return "🚀 MOMENTUM / ESCAPE", f"Fuerza de escape alcista. RSI: {rsi_14:.1f}."
+            else:
+                return "⚠️ SOBREEXTENSIÓN", f"Fase distributiva lejana de soportes. RSI: {rsi_14:.1f}."
+    except Exception as e:
+        return "📡 RADAR", f"Falla de diagnóstico físico: {str(e)}"
 
 def extraer_tickers(texto):
     candidatos = re.findall(r'\b[A-Z]{3,5}\b', texto)
@@ -270,15 +320,18 @@ if 'lista_descubrimientos' in st.session_state:
         
         st.markdown("---")
         st.markdown("### 🏛️ SENTENCIA DEL CENSOR DE URANO")
-        candidatos_validos = df_descubrimientos[df_descubrimientos["Estado Diagnosticado"] != "📡 RADAR"]
+        
+        # Los estados pasivos, sobreextendidos o en radar se filtran de la propuesta activa
+        estados_excluidos = ["📡 RADAR", "⏳ INERCIA PASIVA", "⚠️ SOBREEXTENSIÓN"]
+        candidatos_validos = df_descubrimientos[~df_descubrimientos["Estado Diagnosticado"].isin(estados_excluidos)]
         
         if not candidatos_validos.empty:
             mejor_candidato = candidatos_validos.iloc[0]
             pilar_objetivo = mejor_candidato["Pilar Detectado"]
             
-            st.success(f"🎯 **PROPUESTA ACTIVA DE ROTACIÓN:** El candidato **{mejor_candidato['Ticker']}** ({mejor_candidato['Estado Diagnosticado']}) tiene un FPC de **{mejor_candidato['FPC (Innovación)']}**.")
+            st.success(f"🎯 **PROPUESTA ACTIVA DE ROTACIÓN:** El candidato **{mejor_candidato['Ticker']}** está en estado **{mejor_candidato['Estado Diagnosticado']}** con un FPC de **{mejor_candidato['FPC (Innovación)']}**.")
             st.info(f"Instrucción técnica: Verifica si en el pilar **{pilar_objetivo}** tu software reporta un activo con FPC inferior a 10.0 o con una diferencia del 20% en desmedro estructural para ejecutar la sustitución lineal inmediata.")
         else:
-            st.info("No hay activos externos calificados para desplazar los componentes de los 5 estados en este momento.")
+            st.info("No hay activos externos calificados (con volumen institucional activo o soporte claro) para desplazar componentes en este momento.")
     else:
         st.info("Filtro temporal completado de forma estricta. Cero anomalías frescas detectadas en esta ventana de tiempo.")
