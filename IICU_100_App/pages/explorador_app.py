@@ -119,13 +119,14 @@ def pre_clasificar_estado(ticker, fpc_score):
             return "💎 SOBERANO", f"Fuerza estructural óptima. RSI frío ({rsi_14:.1f})."[cite: 1]
         if fpc_score > 95 and (35 <= rsi_14 <= 48) and abs(precio_actual - sma_50)/sma_50 < 0.05:
             return "⚡ OLLA DE PRESIÓN", f"Acumulación silenciosa activa. RSI: {rsi_14:.1f}."[cite: 1]
-        if precio_actual > sma_200 and fpc_score > 90 and (60 <= 68):
+        
+        # CORRECCIÓN SINTÁCTICA AQUÍ: Se añade rsi_14 a la comparación de rango
+        if precio_actual > sma_200 and fpc_score > 90 and (60 <= rsi_14 <= 68):
             return "🚀 MOMENTUM TEMPRANO", f"Saliendo de base técnica rápida. RSI: {rsi_14:.1f}."[cite: 1]
 
         return "📡 RADAR", f"Latencia estándar de mercado. RSI: {rsi_14:.1f}."[cite: 1]
     except:
         return "📡 RADAR", "Falla de diagnóstico en API de mercado."[cite: 1]
-
 def extraer_tickers(texto):
     candidatos = re.findall(r'\b[A-Z]{3,5}\b', texto)
     falsos_positivos = ["USA", "CEO", "NEW", "FOR", "THE", "APP", "GDP", "FED", "BIT", "AI", "IPO", "NYSE", "AMER", "TECH", "RSS", "AND", "EST"]
