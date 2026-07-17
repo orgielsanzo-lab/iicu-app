@@ -1,6 +1,5 @@
 import math
 from datetime import datetime, timedelta
-import google.generativeai as genai
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -31,7 +30,7 @@ PILARES = {
     ],
 }
 
-# Diccionario Maestro de Explicaciones para mapear dinámicamente en la interfaz
+# Diccionario de Estados para soporte visual e interpretativo rápido en la tabla
 DICCIONARIO_ESTADOS = {
     "🔥 CRUCE DE URANO": {
         "Definición": "Ignición por volumen vertical y ruptura inminente de rango.",
@@ -64,7 +63,7 @@ def calcular_fpc(ticker):
         asset = yf.Ticker(ticker)
         info = asset.info
 
-        # 1. Captura Robusta de I+D (con respaldo)
+        # 1. Captura Robusta de I+D
         rd = info.get("researchDevelopment")
         if rd is None or rd == 0:
             rd = info.get("totalOperatingExpenses", 0) * 0.2
@@ -73,57 +72,19 @@ def calcular_fpc(ticker):
         if rev <= 0:
             rev = 1
 
-        # 2. Ratio de Intensidad (Ciencia sobre Ingreso)
+        # 2. Ratio de Intensidad
         intensity = abs(rd / rev)
 
-        # 3. Factor de Crecimiento y Vigor
+        # 3. Factor de Crecimiento
         growth = abs(info.get("revenueGrowth", 0.1))
 
-        # 4. Cálculo Final Normalizado (Escala 0-100)
+        # 4. Cálculo Final Normalizado
         raw_score = (intensity * 70) + (growth * 30)
         fpc_final = 100 * (1 - math.exp(-raw_score / 2))
 
         return round(fpc_final, 2)
     except:
         return 0.0
-
-# --- [PROTOCOLO DE CENSOR] ---
-def censor_de_urano(pilar_actual, candidatos_externos):
-    propuestas_sustitucion = []
-
-    nodos_con_fpc = [
-        n for n in pilar_actual if n.get("FPC (Peso)") is not None
-    ]
-    if not nodos_con_fpc:
-        return []
-
-    peor_nodo = min(nodos_con_fpc, key=lambda x: x["FPC (Peso)"])
-
-    for aspirante in candidatos_externos:
-        if aspirante in [n["Sigla"] for n in pilar_actual]:
-            continue
-
-        fpc_aspirante = calcular_fpc(aspirante)
-
-        if (
-            fpc_aspirante > (peor_nodo["FPC (Peso)"] * 1.20)
-            or peor_nodo["FPC (Peso)"] < 10.0
-        ):
-            propuestas_sustitucion.append(
-                {
-                    "SALE": peor_nodo["Sigla"],
-                    "ENTRA": aspirante,
-                    "FPC_NUEVO": fpc_aspirante,
-                    "MOTIVO": (
-                        "Superioridad de Innovación"
-                        if fpc_aspirante > peor_nodo["FPC (Peso)"]
-                        else "Atrofia Estructural"
-                    ),
-                }
-            )
-            break
-
-    return propuestas_sustitucion
 
 
 def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
@@ -240,7 +201,6 @@ def auditoria_tecnica(ticker):
             else:
                 estado = "📡 RADAR"
 
-        # Captura de definiciones desde el diccionario maestro para las nuevas columnas explicativas
         definicion = DICCIONARIO_ESTADOS[estado]["Definición"]
         metrica_critica = DICCIONARIO_ESTADOS[estado]["Métrica"]
 
@@ -252,29 +212,14 @@ def auditoria_tecnica(ticker):
             "SMA 200": "✅" if sma200_ok else "❌",
             "Flujo": "💹" if obv_trend else "📉",
             "Estado": estado,
-            "Diagnóstico del Estado": definicion,
-            "Métrica Crítica": metrica_critica
+            "Diagnóstico": definicion,
+            "Criterio": metrica_critica
         }
     except:
         return None
 
 
-# --- [III. CAPA 4: SENTENCIA DE URANO] ---
-def ejecutar_sentencia(row, prompt_manifiesto):
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(
-            f"Analiza {row['Sigla']} basado en el manifiesto: {prompt_manifiesto}. Determina si hay Falla Estructural o Empresa Herida."
-        )
-        return response.text
-    except Exception as e:
-        if row["Estado"] in ["🔥 CRUCE DE URANO", "💎 SOBERANO"]:
-            return f"⚠️ [Soberanía Local Activa - Fallback]\n\nAUDITORÍA: El activo {row['Sigla']} ({row['Estado']}) presenta una Divergencia Soberana en su estructura. No se detectan fallas estructurales matemáticas. DIAGNÓSTICO: EMPRESA HERIDA - OPORTUNIDAD ESTRATÉGICA."
-        else:
-            return f"⚠️ [Soberanía Local Activa]\n\nAUDITORÍA TÉCNICA: {row['Sigla']} cumple el Cuadrante de Hierro. Estado actual: {row['Estado']}. DIAGNÓSTICO: VALIDACIÓN COMPLETA."
-
-
-# --- [IV. INTERFAZ IICU-100 v4.0.0] ---
+# --- [III. INTERFAZ IICU-100 v4.1.0] ---
 st.set_page_config(page_title="IICU-100 Soberanía", layout="wide")
 
 st.markdown(
@@ -289,11 +234,8 @@ st.markdown(
 )
 
 st.title("🏛️ IICU-100: INFRAESTRUCTURA DEL FUTURO")
-st.sidebar.header("CONFIGURACIÓN MAESTRA")
-api_key = st.sidebar.text_input("Clave Oráculo", type="password")
-
-if api_key:
-    genai.configure(api_key=api_key)
+st.sidebar.header("ESTADO DEL SISTEMA")
+st.sidebar.info("Panel Maestro purgado. Redundancias de IA y Censo delegadas a nodos especializados.")
 
 nodo_seleccionado = st.selectbox(
     "Seleccionar Nodo de Poder", list(PILARES.keys())
@@ -315,16 +257,16 @@ if "audit_data" in st.session_state:
     df = st.session_state["audit_data"]
     st.markdown("### 🛰️ MAPA DE PODER ACTUAL")
     
-    # Renderizamos como Dataframe para tener columnas ajustables y control de visualización
+    # Renderizado limpio con columnas optimizadas
     st.dataframe(
         df[[
             "Sigla", "Precio", "RSI", "FPC (Peso)", "SMA 200", "Flujo", 
-            "Estado", "Diagnóstico del Estado", "Métrica Crítica"
+            "Estado", "Diagnóstico", "Criterio"
         ]], 
         use_container_width=True
     )
 
-    # --- [INSERCIÓN DE MÉTRICAS DE ALFA Y GRÁFICO] ---
+    # --- [MÉTRICAS DE ALFA Y GRÁFICO DE RENDIMIENTO] ---
     st.markdown("---")
     st.subheader("📊 Diagnóstico de Divergencia (Alpha de Urano)")
 
@@ -343,52 +285,3 @@ if "audit_data" in st.session_state:
             st.plotly_chart(fig_comp, use_container_width=True)
 
     st.markdown("---")
-
-    # --- [ INTEGRACIÓN DEL CENSOR DE URANO ] ---
-    st.markdown("---")
-    aspirantes_globales = ["OKLO", "ASTS", "RKLB", "VKTX", "VRT", "ARM", "PLTR"]
-
-    resultados_para_censor = df.to_dict("records")
-    propuestas = censor_de_urano(resultados_para_censor, aspirantes_globales)
-
-    if propuestas:
-        st.subheader("🛰️ Sentencia del Censor de Urano")
-        for p in propuestas:
-            st.warning(
-                f"⚠️ **REBALANCEO SUGERIDO:** Sacar `{p['SALE']}` e integrar `{p['ENTRA']}`"
-            )
-            st.info(
-                f"**Razón:** {p['MOTIVO']} | **FPC del Aspirante:** {p['FPC_NUEVO']}"
-            )
-    else:
-        st.success("✅ El Censor no detecta anomalías. Estructura óptima.")
-    st.markdown("---")
-
-    # Sentencias automáticas extendidas a los nuevos estados
-    soberanos = df[
-        df["Estado"].isin(
-            [
-                "💎 SOBERANO",
-                "🔥 CRUCE DE URANO",
-                "⚡ OLLA DE PRESIÓN",
-                "🚀 MOMENTUM TEMPRANO",
-                "🛡️ SACUDIDA INSTITUCIONAL",
-            ]
-        )
-    ]
-
-    if not soberanos.empty:
-        st.markdown("### ⚖️ SENTENCIA DE URANO")
-        for index, row in soberanos.iterrows():
-            with st.expander(f"SENTENCIA: {row['Sigla']} ({row['Estado']})"):
-                if st.button(
-                    f"INVOCAR INTÉRPRETE: {row['Sigla']}",
-                    key=f"btn_{row['Sigla']}",
-                ):
-                    veredicto = ejecutar_sentencia(
-                        row,
-                        "Pilar 2 es Corazón, Pilar 5 es Urano. Buscar Falla Estructural y evaluar potencial de acumulación técnica.",
-                    )
-                    st.write(veredicto)
-    else:
-        st.info("No se detectan activos en zonas de despegue o acumulación.")
