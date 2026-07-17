@@ -10,118 +10,54 @@ import yfinance as yf
 # --- [I. CONFIGURACIÓN DE IDENTIDAD Y MANIFIESTO] ---
 PILARES = {
     "1. La Mente": [
-        "MSFT",
-        "NVDA",
-        "GOOGL",
-        "AMZN",
-        "TSM",
-        "AVGO",
-        "ASML",
-        "AMD",
-        "QCOM",
-        "META",
-        "SNOW",
-        "PLTR",
-        "MSTR",
-        "INTC",
-        "ARM",
-        "KLAC",
-        "AMAT",
-        "CDNS",
-        "PSTG",
-        "ADBE",
+        "MSFT", "NVDA", "GOOGL", "AMZN", "TSM", "AVGO", "ASML", "AMD", "QCOM", "META",
+        "SNOW", "PLTR", "MSTR", "INTC", "ARM", "KLAC", "AMAT", "CDNS", "PSTG", "ADBE"
     ],
     "2. El Corazón": [
-        "CEG",
-        "VST",
-        "CCJ",
-        "BWXT",
-        "SMR",
-        "OKLO",
-        "UUUU",
-        "ETN",
-        "GE",
-        "VRT",
-        "HUBB",
-        "POWL",
-        "NEE",
-        "FSLR",
-        "ENPH",
-        "SEDG",
-        "BE",
-        "DUK",
-        "SO",
-        "AES",
+        "CEG", "VST", "CCJ", "BWXT", "SMR", "OKLO", "UUUU", "ETN", "GE", "VRT",
+        "HUBB", "POWL", "NEE", "FSLR", "ENPH", "SEDG", "BE", "DUK", "SO", "AES"
     ],
     "3. Biología": [
-        "CRSP",
-        "BEAM",
-        "EDIT",
-        "NTLA",
-        "LLY",
-        "NVO",
-        "VRTX",
-        "AMGN",
-        "REGN",
-        "TMO",
-        "DHR",
-        "ILMN",
-        "A",
-        "IQV",
-        "RXRX",
-        "SDGR",
-        "DNA",
-        "GNKX",
-        "MRNA",
-        "BIIB",
+        "CRSP", "BEAM", "EDIT", "NTLA", "LLY", "NVO", "VRTX", "AMGN", "REGN", "TMO",
+        "DHR", "ILMN", "A", "IQV", "RXRX", "SDGR", "DNA", "GNKX", "MRNA", "BIIB"
     ],
     "4. Base Física": [
-        "MP",
-        "ALB",
-        "SQM",
-        "LAC",
-        "LTHM",
-        "FCX",
-        "BHP",
-        "RIO",
-        "VALE",
-        "TECK",
-        "AA",
-        "NEM",
-        "CF",
-        "MOS",
-        "CAT",
-        "DE",
-        "JCI",
-        "URI",
-        "SCCO",
-        "STLD",
+        "MP", "ALB", "SQM", "LAC", "LTHM", "FCX", "BHP", "RIO", "VALE", "TECK",
+        "AA", "NEM", "CF", "MOS", "CAT", "DE", "JCI", "URI", "SCCO", "STLD"
     ],
     "5. Expansión Orbital": [
-        "RKLB",
-        "MDA.TO",
-        "PL",
-        "SPIR",
-        "BKSY",
-        "LMT",
-        "NOC",
-        "RTX",
-        "LHX",
-        "BA",
-        "HWM",
-        "TDG",
-        "JOBY",
-        "ACHR",
-        "TSP",
-        "GSAT",
-        "ASTS",
-        "IRDM",
-        "VSAT",
-        "SPCE",
-        "SPCX",
+        "RKLB", "MDA.TO", "PL", "SPIR", "BKSY", "LMT", "NOC", "RTX", "LHX", "BA",
+        "HWM", "TDG", "JOBY", "ACHR", "TSP", "GSAT", "ASTS", "IRDM", "VSAT", "SPCE", "SPCX"
     ],
 }
 
+# Diccionario Maestro de Explicaciones para mapear dinámicamente en la interfaz
+DICCIONARIO_ESTADOS = {
+    "🔥 CRUCE DE URANO": {
+        "Definición": "Ignición por volumen vertical y ruptura inminente de rango.",
+        "Métrica": "RSI sobrecomprado con volumen relativo masivo (>1.8x)."
+    },
+    "💎 SOBERANO": {
+        "Definición": "Estructura alcista madura en fase de enfriamiento temporal.",
+        "Métrica": "Precio > SMA 200, SMA 50 > SMA 200 con RSI frío (<35) y OBV alcista."
+    },
+    "⚡ OLLA DE PRESIÓN": {
+        "Definición": "Compresión extrema de volatilidad antes del despegue estructural.",
+        "Métrica": "FPC extraordinario (>95), RSI en zona muerta (35-48) y acumulación silenciosa."
+    },
+    "🚀 MOMENTUM TEMPRANO": {
+        "Definición": "Fase inicial de aceleración alcista y salida rápida de base.",
+        "Métrica": "Precio > SMA 200, FPC > 90, RSI activo (60-68) con flujo positivo."
+    },
+    "🛡️ SACUDIDA INSTITUCIONAL": {
+        "Definición": "Limpieza extrema de stop-loss minoristas antes del giro alcista.",
+        "Métrica": "Precio > SMA 200, FPC > 85, RSI extremadamente deprimido (<36)."
+    },
+    "📡 RADAR": {
+        "Definición": "Activo sin anomalías de acumulación o momentum detectadas.",
+        "Métrica": "Estructura neutral. No apto para asignación de capital."
+    }
+}
 
 def calcular_fpc(ticker):
     try:
@@ -151,10 +87,7 @@ def calcular_fpc(ticker):
     except:
         return 0.0
 
-
 # --- [PROTOCOLO DE CENSOR] ---
-
-
 def censor_de_urano(pilar_actual, candidatos_externos):
     propuestas_sustitucion = []
 
@@ -249,8 +182,6 @@ def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
 
 
 # --- [II. MOTOR DE AUDITORÍA CUÁNTICA - CAPAS 2 Y 3] ---
-
-
 def auditoria_tecnica(ticker):
     try:
         asset = yf.Ticker(ticker)
@@ -309,6 +240,10 @@ def auditoria_tecnica(ticker):
             else:
                 estado = "📡 RADAR"
 
+        # Captura de definiciones desde el diccionario maestro para las nuevas columnas explicativas
+        definicion = DICCIONARIO_ESTADOS[estado]["Definición"]
+        metrica_critica = DICCIONARIO_ESTADOS[estado]["Métrica"]
+
         return {
             "Sigla": ticker,
             "Precio": round(actual, 2),
@@ -317,14 +252,14 @@ def auditoria_tecnica(ticker):
             "SMA 200": "✅" if sma200_ok else "❌",
             "Flujo": "💹" if obv_trend else "📉",
             "Estado": estado,
+            "Diagnóstico del Estado": definicion,
+            "Métrica Crítica": metrica_critica
         }
     except:
         return None
 
 
 # --- [III. CAPA 4: SENTENCIA DE URANO] ---
-
-
 def ejecutar_sentencia(row, prompt_manifiesto):
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
@@ -339,7 +274,7 @@ def ejecutar_sentencia(row, prompt_manifiesto):
             return f"⚠️ [Soberanía Local Activa]\n\nAUDITORÍA TÉCNICA: {row['Sigla']} cumple el Cuadrante de Hierro. Estado actual: {row['Estado']}. DIAGNÓSTICO: VALIDACIÓN COMPLETA."
 
 
-# --- [IV. INTERFAZ IICU-100 v3.8.0] ---
+# --- [IV. INTERFAZ IICU-100 v4.0.0] ---
 st.set_page_config(page_title="IICU-100 Soberanía", layout="wide")
 
 st.markdown(
@@ -379,7 +314,15 @@ if st.button("EJECUTAR AUDITORÍA DE NODO"):
 if "audit_data" in st.session_state:
     df = st.session_state["audit_data"]
     st.markdown("### 🛰️ MAPA DE PODER ACTUAL")
-    st.table(df)
+    
+    # Renderizamos como Dataframe para tener columnas ajustables y control de visualización
+    st.dataframe(
+        df[[
+            "Sigla", "Precio", "RSI", "FPC (Peso)", "SMA 200", "Flujo", 
+            "Estado", "Diagnóstico del Estado", "Métrica Crítica"
+        ]], 
+        use_container_width=True
+    )
 
     # --- [INSERCIÓN DE MÉTRICAS DE ALFA Y GRÁFICO] ---
     st.markdown("---")
