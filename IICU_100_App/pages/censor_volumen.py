@@ -31,12 +31,12 @@ def obtener_datos_mercado(ticker_symbol):
         df = asset.history(period="2y")
         if df.empty:
             return None
-        df = df.dropna(subset=['Close', 'Volume'])
+        df = df.dropna(subset=['Close', 'Volume', 'High', 'Low'])
         return df
     except Exception:
         return None
 
-# Función matemática auxiliar para calcular el POC ponderado por volumen en un segmento
+# Función matemática auxiliar para calcular el POC ponderado por volumen en un segmento utilizando el Precio Típico
 def calcular_poc_segmento(df_slice, bins=50):
     if df_slice.empty:
         return np.nan
@@ -46,9 +46,12 @@ def calcular_poc_segmento(df_slice, bins=50):
     
     if price_min == price_max:
         return price_min
+    
+    # [CORRECCIÓN 1]: Cálculo sobre Precio Típico para capturar microestructura real intradía
+    typical_price = (df_slice['High'] + df_slice['Low'] + df_slice['Close']) / 3
         
     counts, bin_edges = np.histogram(
-        df_slice['Close'], 
+        typical_price, 
         bins=bins, 
         range=(price_min, price_max), 
         weights=df_slice['Volume']
@@ -83,7 +86,7 @@ if ticker:
         df_completo = obtener_datos_mercado(ticker)
         
         if df_completo is None or len(df_completo) < 200:
-            st.error("❌ Datos insuficientes o incorrectos. Se requieren al menos 200 días de historial de cotización.")
+            st.error("❌ Datos insuficientes o incorrectos. Se requieren al menos 200 días de historial de cotización con volumen.")
         else:
             # Rebanadas temporales estrictas para el análisis
             df_200 = df_completo.iloc[-200:]
@@ -115,14 +118,16 @@ if ticker:
             sostiene_poc_local = precio_actual >= (poc_local * 0.985)  # Tolerancia del 1.5%
             rvol_alto = rvol >= 1.2
             
-            # Clasificación matemática e inequívoca de estados del Censor
+            # [CORRECCIÓN 2]: Clasificación de microestructura de tres vías bajo el POC de 200 días
             if bajo_poc_anual:
                 if sostiene_poc_local and rvol_alto and obv_ascendente:
                     estado_censor = "Giro Detectado / Olla Reconstruida"
                 elif not sostiene_poc_local and rvol_alto:
-                    estado_censor = "Camino de Desgastamiento / Olla Agujerada"
+                    # Perforación del soporte con volumen institucional real = Distribución/Liquidación Activa
+                    estado_censor = "Olla Agujerada / Ruptura de Liquidez"
                 else:
-                    estado_censor = "Camino de Desgastamiento / Olla Agujerada"  # Fallback si no hay soporte ni volumen acumulativo
+                    # Caída por debajo del nivel sin presión de venta masiva (bajo volumen)
+                    estado_censor = "Inercia Bajista Pasiva (Sin Volumen)"
             else:
                 # Estructuras por encima de la zona de gravedad institucional
                 distancia_poc_anual = ((precio_actual - poc_anual) / poc_anual) * 100
@@ -144,13 +149,23 @@ if ticker:
             st.markdown(f"### 📊 Diagnóstico Físico de Flujo para **{ticker}**")
             
             # --- RENDERIZADO DEL DIAGNÓSTICO DE GRAVEDAD ---
-            if estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+            if estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                 st.markdown(f"""
                 <div class="report-box" style="background-color: rgba(255, 0, 0, 0.1); border: 2px solid #FF3333;">
-                    <h3 style="color: #FF3333; margin-top:0;">❌ OLLA AGUJERADA / CAMINO DE DESGASTAMIENTO</h3>
-                    <p><b>Diagnóstico (Foco en Pánico):</b> El precio (<b>${precio_actual:.2f}</b>) cotiza en zona de pánico, por debajo del POC Anual (<b>${poc_anual:.2f}</b>).</p>
-                    <p><b>Microestructura:</b> El soporte del POC Local de 20 días (<b>${poc_local:.2f}</b>) ha sido perforado o carece de la acumulación necesaria (RVOL: <b>{rvol:.2f}x</b>, Pendiente OBV: {'Positiva' if obv_ascendente else 'Negativa'}).</p>
-                    <p><b>Riesgo:</b> Las instituciones no están absorbiendo la oferta en estos niveles. Distribución o liquidación activa. <b>Entrada Estrictamente Prohibida</b>.</p>
+                    <h3 style="color: #FF3333; margin-top:0;">🛑 OLLA AGUJERADA / PELIGRO</h3>
+                    <p><b>Diagnóstico (Ruptura Violenta):</b> El precio (<b>${precio_actual:.2f}</b>) cotiza por debajo del POC Anual (<b>${poc_anual:.2f}</b>) en zona de pánico estructural.</p>
+                    <p><b>Microestructura:</b> El precio ha perforado con volumen el soporte del POC Local de 20 días (<b>${poc_local:.2f}</b>). El volumen es inusual (RVOL: <b>{rvol:.2f}x</b>), lo que confirma presencia de flujos institucionales vendiendo o liquidando activamente.</p>
+                    <p><b>Riesgo:</b> Perforación real de suelo físico. No hay absorción en la base. <b>Entrada Estrictamente Prohibida / Riesgo de Desplome</b>.</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                st.markdown(f"""
+                <div class="report-box" style="background-color: rgba(150, 150, 150, 0.1); border: 2px solid #888888;">
+                    <h3 style="color: #cccccc; margin-top:0;">⏳ INERCIA BAJISTA PASIVA / GOTEO</h3>
+                    <p><b>Diagnóstico (Ausencia de Flujo):</b> El precio cotiza bajo el POC Anual (<b>${poc_anual:.2f}</b>) pero se mueve por desinterés, no por pánico activo.</p>
+                    <p><b>Microestructura:</b> El precio no sostiene el POC local de 20 días, pero el volumen está apagado (RVOL: <b>{rvol:.2f}x</b>). No existe interés de compra institucional ni presión de venta organizada.</p>
+                    <p><b>Riesgo:</b> Desgaste lateral/bajista pasivo por falta de liquidez. Esperar anomalía de volumen para validar acumulación.</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -158,8 +173,8 @@ if ticker:
                 st.markdown(f"""
                 <div class="report-box" style="background-color: rgba(0, 255, 170, 0.1); border: 2px solid #00FFAA;">
                     <h3 style="color: #00FFAA; margin-top:0;">🛠️ GIRO DETECTADO / OLLA RECONSTRUIDA</h3>
-                    <p><b>Diagnóstico (Foco en Absorción):</b> El precio cotiza bajo el POC Anual de 200 días (<b>${poc_anual:.2f}</b>) en zona de pánico controlado.</p>
-                    <p><b>Microestructura:</b> El precio se sostiene firmemente sobre el POC Local de 20 días (<b>${poc_local:.2f}</b>) con un RVOL institucional inusual de <b>{rvol:.2f}x</b> (superior a 1.2x) y flujo monetario OBV acumulativo (pendiente de regresión positiva).</p>
+                    <p><b>Diagnóstico (Foco en Absorción):</b> El precio cotiza bajo el POC Anual de 200 días (<b>${poc_anual:.2f}</b>) en zona de pánico controlado de mercado.</p>
+                    <p><b>Microestructura:</b> El precio se sostiene firmemente dentro del rango del 1.5% del POC Local de 20 días (<b>${poc_local:.2f}</b>) con un RVOL institucional inusual de <b>{rvol:.2f}x</b> y flujo monetario OBV acumulativo (pendiente de regresión positiva).</p>
                     <p><b>Oportunidad:</b> Fase de acumulación agresiva oculta (esfuerzo de absorción institucional). Se autorizan <b>compras escalonadas en la base</b>.</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -196,9 +211,12 @@ if ticker:
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
                     st.success("🎯 **VEREDICTO: ENTRADA ANTICIPATIVA DE ALTA CONVICCIÓN**")
                     st.info("🧠 *Instrucción:* El Cruce de Urano en el Panel se acopla perfectamente con una Olla Reconstruida en la base. Las ballenas están absorbiendo la oferta por debajo del precio promedio anual. Iniciar acumulación táctica.")
-                elif estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                     st.error("🛑 **VEREDICTO: SEÑAL TRAP / DESCARTE INMEDIATO**")
-                    st.info("🧠 *Instrucción:* El indicador del Panel amaga fuerza, pero el censor de volumen detecta una Olla Agujerada. Sin volumen ni soporte local, la gravedad romperá la estructura.")
+                    st.info("🧠 *Instrucción:* El indicador del Panel amaga fuerza, pero el censor de volumen detecta una Olla Agujerada. Sin volumen de absorción ni soporte local, la gravedad romperá la estructura. No tocar.")
+                elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                    st.warning("⏳ **VEREDICTO: NO CONCURRENTE / EN ESPERA**")
+                    st.info("🧠 *Instrucción:* Hay señal en el panel pero el precio gotea por debajo del POC anual con volumen apagado. No hay confluencia de flujos. Monitorear sin ingresar.")
                 else:
                     st.success("🎯 **VEREDICTO: ENTRADA DE MOMENTUM TRADICIONAL**")
                     st.info("🧠 *Instrucción:* Estructura por encima del POC anual consolidada. Ejecutar orden de continuación estándar.")
@@ -208,9 +226,12 @@ if ticker:
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
                     st.success("🎯 **VEREDICTO: COMPRA SOBERANA BAJO RADAR**")
                     st.info("🧠 *Instrucción:* El activo mantiene el rango soberano a nivel macro, y localmente ha reconstruido la olla de acumulación. Alta probabilidad de expansión de largo plazo.")
-                elif estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                     st.error("🛑 **VEREDICTO: DISTRIBUCIÓN SOBERANA / ESCAPE DE CAPITAL**")
-                    st.info("🧠 *Instrucción:* Alerta grave. Un activo catalogado como Soberano que perfora el POC de 200 días sin volumen de absorción local está en fase de distribución institucional masiva.")
+                    st.info("🧠 *Instrucción:* Alerta grave. Un activo catalogado como Soberano que perfora el POC de 200 días con volumen de liquidación local está en fase de distribución institucional masiva.")
+                elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                    st.warning("⏳ **VEREDICTO: EXHAUSTACIÓN SOBERANA**")
+                    st.info("🧠 *Instrucción:* Debilidad general sin participación institucional. Aunque el activo sea de alta jerarquía macro, la inercia del precio es bajista. Mantener en cartera estática pero congelar compras adicionales.")
                 else:
                     st.info("🧠 *Instrucción:* Estructura soberana clásica sobre el soporte del POC. Continuar con DCA automatizado.")
 
@@ -219,9 +240,12 @@ if ticker:
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
                     st.success("🎯 **VEREDICTO: COMPRESIÓN SQUEEZE DETECTADA**")
                     st.info(f"🧠 *Instrucción:* Olla de presión con volumen local activo ({rvol:.2f}x) en la base de la acumulación. La ruptura alcista inminente tiene el respaldo del dinero inteligente.")
-                elif estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                     st.error("🛑 **VEREDICTO: OLLA AGUJERADA (Falsa Compresión)**")
-                    st.info("🧠 *Instrucción:* El activo muestra baja volatilidad pero el volumen local está muerto y debajo del POC anual. El escape será bajista por liquidación silenciosa.")
+                    st.info("🧠 *Instrucción:* El activo muestra baja volatilidad pero el volumen local está barriendo soportes con alto volumen relativo. El escape será bajista por liquidación silenciosa.")
+                elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                    st.warning("⏳ **VEREDICTO: RANGO MUERTO**")
+                    st.info("🧠 *Instrucción:* Compresión artificial debido a la simple falta de interés en el mercado. Sin volumen activo, no hay resorte para gatillar un movimiento expansivo.")
                 else:
                     st.warning("⚠️ **VEREDICTO: COMPRESIÓN EN ZONAS ALTAS**")
                     st.info("🧠 *Instrucción:* Olla de presión acumulando energía por encima del POC anual. No entrar hasta ruptura física del límite superior del rango de consolidación.")
@@ -231,9 +255,12 @@ if ticker:
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
                     st.success("🎯 **VEREDICTO: VELOCIDAD CON RESPALDO INSTITUCIONAL**")
                     st.info("🧠 *Instrucción:* Giro local verificado con aceleración de volumen y momentum técnico inicial. Esta combinación suele marcar el inicio de una tendencia vertical masiva.")
-                elif estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                     st.error("🛑 **VEREDICTO: TRAMPA DE MOMENTUM (Falso Rebote)**")
-                    st.info("🧠 *Instrucción:* Rebote sin volumen ni soporte de POC local. Movimiento impulsado por minoristas atrapados. El Censor bloquea la compra.")
+                    st.info("🧠 *Instrucción:* Rebote sin volumen real que colapsa violentamente bajo el soporte. El Censor bloquea inmediatamente la compra para proteger tu capital.")
+                elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                    st.error("🛑 **VEREDICTO: MOMENTUM SIN GASOLINA**")
+                    st.info("🧠 *Instrucción:* El impulso técnico carece de soporte de volumen en los niveles de microestructura. Señal descartada.")
                 else:
                     st.warning("⚠️ **VEREDICTO: MOMENTUM EN ESCAPE**")
                     st.info("🧠 *Instrucción:* Impulso alcista en desarrollo. Ejecutar únicamente con órdenes stop por encima de máximos locales para evitar retrocesos agresivos.")
@@ -243,9 +270,12 @@ if ticker:
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
                     st.success("🎯 **VEREDICTO: LIMPIEZA DE STOP-LOSS / COMPRA DE SUELO**")
                     st.info(f"🧠 *Instrucción:* Barrido de liquidez ejecutado con éxito. El precio violó el soporte anual pero las instituciones mantuvieron el POC local con volumen (RVOL: {rvol:.2f}x). Entrada óptima.")
-                elif estado_censor == "Camino de Desgastamiento / Olla Agujerada":
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
                     st.error("🛑 **VEREDICTO: PERFORACIÓN REAL / NO COMPRAR**")
-                    st.info("🧠 *Instrucción:* No es una sacudida, es una pérdida real del soporte institucional sin interés de compra a precios de descuento.")
+                    st.info("🧠 *Instrucción:* No es una sacudida de limpieza, es una pérdida física real del soporte institucional sin interés de compra. Las ballenas se están quitando del medio.")
+                else:
+                    st.warning("⏳ **VEREDICTO: SACUDIDA NO CONFIRMADA**")
+                    st.info("🧠 *Instrucción:* Movimiento errático sin confluencia de volumen en los extremos locales. Permanecer expectantes.")
 
             # [6] 📡 RADAR (Neutralidad)
             elif estado_maestro == "📡 RADAR":
@@ -255,11 +285,15 @@ if ticker:
             # --- 📈 GRÁFICO VISUAL DEL PERFIL DE VOLUMEN MULTI-POC ---
             fig = go.Figure()
             
-            # Histograma del perfil anual de volumen (200 días)
+            # Histograma del perfil anual de volumen (200 días) basado en Precio Típico
             price_min_200 = df_200['Low'].min()
             price_max_200 = df_200['High'].max()
+            
+            # [CORRECCIÓN 1]: El gráfico también debe renderizarse en base al precio típico calculado
+            typical_price_200 = (df_200['High'] + df_200['Low'] + df_200['Close']) / 3
+            
             counts_200, bin_edges_200 = np.histogram(
-                df_200['Close'].values, 
+                typical_price_200.values, 
                 bins=50, 
                 range=(price_min_200, price_max_200), 
                 weights=df_200['Volume'].values
@@ -269,7 +303,7 @@ if ticker:
                 y=[(bin_edges_200[i] + bin_edges_200[i+1])/2 for i in range(len(counts_200))],
                 x=counts_200,
                 orientation='h',
-                name='Perfil de Volumen Anual (200d)',
+                name='Perfil de Volumen Anual (Precio Típico 200d)',
                 marker=dict(color='rgba(0, 255, 170, 0.12)', line=dict(color='#00FFAA', width=1))
             ))
             
@@ -314,4 +348,4 @@ if ticker:
             st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
-st.caption("Filtro de volumen autónomo v4.3.0 - Motor de confluencia física 'Olla de Presión & Reconstruida' diseñado por téchnē.")
+st.caption("Filtro de volumen autónomo v4.4.0 - Motor de confluencia física 'Olla de Presión & Reconstruida' optimizado por téchnē.")
