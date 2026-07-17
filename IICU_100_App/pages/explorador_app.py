@@ -112,21 +112,20 @@ def pre_clasificar_estado(ticker, fpc_score):
 
         # Condicionales estrictas por Tabla de Estados
         if precio_actual > sma_200 and (ratio_vol >= 1.8 or rsi_14 > 70):
-            return "🔥 CRUCE DE URANO", f"Ignición inminente ({ratio_vol:.1f}x volumen, RSI: {rsi_14:.1f})."[cite: 1]
+            return "🔥 CRUCE DE URANO", f"Ignición inminente ({ratio_vol:.1f}x volumen, RSI: {rsi_14:.1f})."
         if precio_actual > sma_200 and rsi_14 < 36 and fpc_score > 85:
-            return "🛡️ SACUDIDA INSTITUCIONAL", f"Caza de liquidez en soporte macro. RSI: {rsi_14:.1f}."[cite: 1]
+            return "🛡️ SACUDIDA INSTITUCIONAL", f"Caza de liquidez en soporte macro. RSI: {rsi_14:.1f}."
         if precio_actual > sma_200 and sma_50 > sma_200 and rsi_14 < 35 and obv_creciente:
-            return "💎 SOBERANO", f"Fuerza estructural óptima. RSI frío ({rsi_14:.1f})."[cite: 1]
+            return "💎 SOBERANO", f"Fuerza estructural óptima. RSI frío ({rsi_14:.1f})."
         if fpc_score > 95 and (35 <= rsi_14 <= 48) and abs(precio_actual - sma_50)/sma_50 < 0.05:
-            return "⚡ OLLA DE PRESIÓN", f"Acumulación silenciosa activa. RSI: {rsi_14:.1f}."[cite: 1]
-        
-        # CORRECCIÓN SINTÁCTICA AQUÍ: Se añade rsi_14 a la comparación de rango
+            return "⚡ OLLA DE PRESIÓN", f"Acumulación silenciosa activa. RSI: {rsi_14:.1f}."
         if precio_actual > sma_200 and fpc_score > 90 and (60 <= rsi_14 <= 68):
-            return "🚀 MOMENTUM TEMPRANO", f"Saliendo de base técnica rápida. RSI: {rsi_14:.1f}."[cite: 1]
+            return "🚀 MOMENTUM TEMPRANO", f"Saliendo de base técnica rápida. RSI: {rsi_14:.1f}."
 
-        return "📡 RADAR", f"Latencia estándar de mercado. RSI: {rsi_14:.1f}."[cite: 1]
+        return "📡 RADAR", f"Latencia estándar de mercado. RSI: {rsi_14:.1f}."
     except:
-        return "📡 RADAR", "Falla de diagnóstico en API de mercado."[cite: 1]
+        return "📡 RADAR", "Falla de diagnóstico en API de mercado."
+
 def extraer_tickers(texto):
     candidatos = re.findall(r'\b[A-Z]{3,5}\b', texto)
     falsos_positivos = ["USA", "CEO", "NEW", "FOR", "THE", "APP", "GDP", "FED", "BIT", "AI", "IPO", "NYSE", "AMER", "TECH", "RSS", "AND", "EST"]
@@ -153,10 +152,8 @@ def validar_fecha_noticia(entry, max_dias_antiguedad):
     """
     dt_noticia = None
     
-    # Intento 1: Usar estructura nativa parseada por feedparser
     if hasattr(entry, 'published_parsed') and entry.published_parsed:
         dt_noticia = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
-    # Intento 2: Parsear la cadena directa si la tupla falla
     elif hasattr(entry, 'published'):
         try:
             dt_noticia = parsedate_to_datetime(entry.published)
@@ -166,13 +163,11 @@ def validar_fecha_noticia(entry, max_dias_antiguedad):
             return False, None
 
     if dt_noticia is None:
-        return False, None # Rechazar si no tiene marca temporal legible
+        return False, None
 
-    # CRITERIO 1: Filtro absoluto del presente año
     if dt_noticia.year != ANIO_ACTUAL:
         return False, dt_noticia
 
-    # CRITERIO 2: Filtro de ventana dinámica por días
     dt_actual = datetime.now(timezone.utc)
     diferencia_dias = (dt_actual - dt_noticia).days
     
@@ -198,7 +193,6 @@ if st.sidebar.button("INICIAR ESCANEO DE RED 2026"):
             feed = feedparser.parse(url)
             for entry in feed.entries:
                 
-                # EJECUCIÓN DEL FILTRO TEMPORAL ANTES DEL ANÁLISIS SEMÁNTICO (Ahorro de Cómputo)
                 fecha_valida, dt_noticia = validar_fecha_noticia(entry, max_dias)
                 
                 if not fecha_valida:
@@ -206,7 +200,7 @@ if st.sidebar.button("INICIAR ESCANEO DE RED 2026"):
                         noticias_descartadas_anio += 1
                     else:
                         noticias_descartadas_antiguedad += 1
-                    continue # Saltar al siguiente registro sin leer contenido desactualizado
+                    continue
                 
                 contenido_noticia_lower = f"{entry.title} {getattr(entry, 'summary', '')}".lower()
                 
@@ -242,7 +236,6 @@ if st.sidebar.button("INICIAR ESCANEO DE RED 2026"):
         
     progreso.empty()
     
-    # Guardar métricas de purga en el estado de sesión
     st.session_state['descartadas_anio'] = noticias_descartadas_anio
     st.session_state['descartadas_antiguedad'] = noticias_descartadas_antiguedad
     
@@ -251,10 +244,8 @@ if st.sidebar.button("INICIAR ESCANEO DE RED 2026"):
     else:
         st.session_state['lista_descubrimientos'] = pd.DataFrame()
 
-# --- RENDERING DE DIAGNÓSTICOS ---
 if 'lista_descubrimientos' in st.session_state:
     
-    # Cuadro de Métricas de Control Temporal
     st.markdown("### 📊 AUDITORÍA DE PURGA TEMPORAL (Métricas Anti-Latencia)")
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
@@ -267,7 +258,7 @@ if 'lista_descubrimientos' in st.session_state:
     df_descubrimientos = st.session_state['lista_descubrimientos']
     
     if not df_descubrimientos.empty:
-        st.markdown("### 🛰️ VECTORES TECNOLÓGICOS ACTUALIZADOS (2026)")
+        st.markdown("### 🛰️ VECTORES TECNOLÓGICOS DETECTADOS (2026)")
         st.dataframe(
             df_descubrimientos[[
                 "Ticker", "Pilar Detectado", "Estado Diagnosticado", 
@@ -277,10 +268,9 @@ if 'lista_descubrimientos' in st.session_state:
             use_container_width=True
         )
         
-        # Lógica Automatizada de Sentencia de Rebalanceo
         st.markdown("---")
         st.markdown("### 🏛️ SENTENCIA DEL CENSOR DE URANO")
-        candidatos_validos = df_descubrimientos[df_descubrimientos["Estado Diagnosticado"] != "📡 RADAR"][cite: 1]
+        candidatos_validos = df_descubrimientos[df_descubrimientos["Estado Diagnosticado"] != "📡 RADAR"]
         
         if not candidatos_validos.empty:
             mejor_candidato = candidatos_validos.iloc[0]
@@ -289,6 +279,6 @@ if 'lista_descubrimientos' in st.session_state:
             st.success(f"🎯 **PROPUESTA ACTIVA DE ROTACIÓN:** El candidato **{mejor_candidato['Ticker']}** ({mejor_candidato['Estado Diagnosticado']}) tiene un FPC de **{mejor_candidato['FPC (Innovación)']}**.")
             st.info(f"Instrucción técnica: Verifica si en el pilar **{pilar_objetivo}** tu software reporta un activo con FPC inferior a 10.0 o con una diferencia del 20% en desmedro estructural para ejecutar la sustitución lineal inmediata.")
         else:
-            st.info("No hay activos externos calificados para desplazar los componentes de los 5 estados en este momento.")[cite: 1]
+            st.info("No hay activos externos calificados para desplazar los componentes de los 5 estados en este momento.")
     else:
-        st.info("Filtro temporal completado de forma estricta. Cero anomalías frescas detectadas en esta ventana de tiempo.")ilar e intégrala en tu código maestro.")
+        st.info("Filtro temporal completado de forma estricta. Cero anomalías frescas detectadas en esta ventana de tiempo.")
