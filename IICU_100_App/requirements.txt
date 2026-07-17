@@ -5,3 +5,4 @@ numpy
 plotly
 feedparser
 google-generativeai
+scipy
