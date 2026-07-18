@@ -250,6 +250,20 @@ if ticker:
                     st.warning("⚠️ **VEREDICTO: COMPRESIÓN EN ZONAS ALTAS**")
                     st.info("🧠 *Instrucción:* Olla de presión acumulando energía por encima del POC anual. No entrar hasta ruptura física del límite superior del rango de consolidación.")
 
+            # [3.5] 🛠️ OLLA RECONSTRUIDA
+            elif estado_maestro == "🛠️ OLLA RECONSTRUIDA":
+                if estado_censor == "Giro Detectado / Olla Reconstruida":
+                    st.success("🎯 **VEREDICTO: CONFLUENCIA INSTITUCIONAL PLENA**")
+                    st.info("🧠 *Instrucción:* El Panel Maestro y el Censor coinciden. El activo ha superado el pánico y el flujo de absorción está activo. Autorizada carga táctica en niveles de POC local.")
+                elif estado_censor == "Olla Agujerada / Ruptura de Liquidez":
+                    st.error("🛑 **VEREDICTO: FALLO DE ESTRUCTURA / DESCARTE**")
+                    st.info("🧠 *Instrucción:* El Panel sugiere reconstrucción, pero el Censor detecta escape de capital. La estructura ha fallado; no operar bajo este escenario de alta volatilidad negativa.")
+                elif estado_censor == "Inercia Bajista Pasiva (Sin Volumen)":
+                    st.warning("⏳ **VEREDICTO: EN ZONA DE VALOR (SIN CATALIZADOR)**")
+                    st.info("🧠 *Instrucción:* El activo está en niveles interesantes de precio pero falta el volumen de giro. Mantener en lista de observación, no ejecutar hasta detectar entrada de capital institucional.")
+                else:
+                    st.info("🧠 *Instrucción:* Estructura de giro en curso. Esperar a que el precio estabilice sobre el POC local antes de tomar posición.")
+                    
             # [4] 🚀 MOMENTUM TEMPRANO
             elif estado_maestro == "🚀 MOMENTUM TEMPRANO":
                 if estado_censor == "Giro Detectado / Olla Reconstruida":
