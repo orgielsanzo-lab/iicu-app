@@ -74,7 +74,8 @@ with col_maestro:
         [
             "🔥 CRUCE DE URANO", 
             "💎 SOBERANO", 
-            "⚡ OLLA DE PRESIÓN", 
+            "⚡ OLLA DE PRESIÓN",
+            "🛠️ OLLA RECONSTRUIDA",
             "🚀 MOMENTUM TEMPRANO", 
             "🛡️ SACUDIDA INSTITUCIONAL",
             "📡 RADAR"
