@@ -24,6 +24,7 @@ DICCIONARIO_ESTADOS = {
     "📡 RADAR": {"Definición": "Activo sin anomalías de acumulación o momentum detectadas.", "Métrica": "Estructura neutral. No apto para asignación de capital."}
 }
 
+# --- [II. LÓGICA DE AUDITORÍA Y CÁLCULOS] ---
 def calcular_fpc(ticker):
     try:
         asset = yf.Ticker(ticker)
@@ -45,11 +46,14 @@ def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
             h = yf.Ticker(t).history(period="1y")["Close"]
             if not h.empty: pilares_data.append((h / h.iloc[0]) * 100)
         iicu_norm = pd.concat(pilares_data, axis=1).mean(axis=1)
+        ret_iicu = round(iicu_norm.iloc[-1] - 100, 2)
+        ret_spy = round(bench_norm.iloc[-1] - 100, 2)
+        alpha = round(ret_iicu - ret_spy, 2)
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=bench_norm.index, y=bench_norm, name="S&P 500", line=dict(color="#888888", dash="dot")))
         fig.add_trace(go.Scatter(x=iicu_norm.index, y=iicu_norm, name="IICU-100", line=dict(color="#00FFAA", width=4)))
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#e0e0e0"), height=400, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-        return fig, round(iicu_norm.iloc[-1] - bench_norm.iloc[-1], 2), round(iicu_norm.iloc[-1] - 100, 2)
+        return fig, alpha, ret_iicu
     except: return None, 0, 0
 
 def auditoria_tecnica(ticker):
@@ -57,52 +61,55 @@ def auditoria_tecnica(ticker):
         asset = yf.Ticker(ticker)
         hist = asset.history(period="1y")
         if len(hist) < 200: return None
-        
         close = hist["Close"]
-        delta = close.diff()
-        gain, loss = delta.where(delta > 0, 0), -delta.where(delta < 0, 0)
-        avg_gain, avg_loss = gain.ewm(alpha=1/14, adjust=False).mean(), loss.ewm(alpha=1/14, adjust=False).mean()
-        rs = avg_gain / avg_loss
-        rsi = (100 - (100 / (1 + rs))).iloc[-1]
-        
         sma200, sma50, actual = close.rolling(200).mean().iloc[-1], close.rolling(50).mean().iloc[-1], close.iloc[-1]
+        delta = close.diff()
+        gain, loss = (delta.where(delta > 0, 0)).rolling(14).mean(), (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rsi = (100 - (100 / (1 + (gain / loss)))).iloc[-1]
         hist["OBV"] = (np.sign(close.diff()) * hist["Volume"]).fillna(0).cumsum()
         obv_trend = hist["OBV"].iloc[-1] > hist["OBV"].rolling(10).mean().iloc[-1]
         
-        hist_200 = hist.tail(200); poc_anual = pd.cut(hist_200['Close'], bins=20).value_counts().idxmax().mid
-        hist_20 = hist.tail(20); poc_local = pd.cut(hist_20['Close'], bins=10).value_counts().idxmax().mid
+        # Perfiles de Volumen
+        poc_anual = pd.cut(hist.tail(200)['Close'], bins=20).value_counts().idxmax().mid
+        poc_local = pd.cut(hist.tail(20)['Close'], bins=10).value_counts().idxmax().mid
         
-        rvol_local = hist_20['Volume'].mean() / hist['Volume'].rolling(100).mean().iloc[-1]
+        rvol_local = hist.tail(20)['Volume'].mean() / hist['Volume'].rolling(100).mean().iloc[-1]
         giro_en_base = (actual < (poc_anual * 0.98) and actual >= (poc_local * 0.98) and rvol_local > 1.15 and hist['OBV'].iloc[-1] > hist['OBV'].iloc[-5])
         
         es_soberano = (actual > sma200 and sma50 > sma200 and rsi < 35 and obv_trend)
-        estado = "📡 RADAR"
+        ignicion = False
         if es_soberano:
-            vol_rel = hist["Volume"].iloc[-1] / hist["Volume"].rolling(20).mean().iloc[-1]
-            estado = "🔥 CRUCE DE URANO" if (vol_rel > 1.8 or (rsi > 40 and actual < close.iloc[-3])) else "💎 SOBERANO"
+            div_rsi = rsi > (100 - (100 / (1 + (gain.iloc[-3] / loss.iloc[-3]))))
+            if (hist["Volume"].iloc[-1] / hist["Volume"].rolling(20).mean().iloc[-1] > 1.8) or (div_rsi and actual < close.iloc[-3]):
+                ignicion = True
+
+        if ignicion: estado = "🔥 CRUCE DE URANO"
+        elif es_soberano: estado = "💎 SOBERANO"
         elif giro_en_base: estado = "🛠️ OLLA RECONSTRUIDA"
         elif obv_trend:
             fpc = calcular_fpc(ticker)
             if fpc > 95 and 35 <= rsi <= 48: estado = "⚡ OLLA DE PRESIÓN"
             elif actual > sma200 and fpc > 90 and 60 <= rsi <= 68: estado = "🚀 MOMENTUM TEMPRANO"
             elif actual > sma200 and fpc > 85 and rsi < 36: estado = "🛡️ SACUDIDA INSTITUCIONAL"
-
+            else: estado = "📡 RADAR"
+        else: estado = "📡 RADAR"
+        
         return {"Sigla": ticker, "Precio": round(actual, 2), "RSI": round(rsi, 1), "FPC (Peso)": calcular_fpc(ticker), "SMA 200": "✅" if actual > sma200 else "❌", "Flujo": "💹" if obv_trend else "📉", "Estado": estado, "Diagnóstico": DICCIONARIO_ESTADOS[estado]["Definición"], "Criterio": DICCIONARIO_ESTADOS[estado]["Métrica"]}
     except: return None
 
 # --- [III. INTERFAZ] ---
 st.set_page_config(page_title="IICU-100 Soberanía", layout="wide")
+st.markdown("<style>.stApp { background-color: #050505; color: #e0e0e0; }</style>", unsafe_allow_html=True)
 st.title("🏛️ IICU-100: ENGINE DE SOBERANÍA TÉCNICA")
-nodo_seleccionado = st.selectbox("Seleccionar Nodo de Poder", list(PILARES.keys()))
+nodo_seleccionado = st.sidebar.selectbox("Seleccionar Nodo de Poder", list(PILARES.keys()))
+
 if st.button("EJECUTAR AUDITORÍA DE NODO"):
     res_list = [auditoria_tecnica(t) for t in PILARES[nodo_seleccionado]]
     st.session_state["audit_data"] = pd.DataFrame([r for r in res_list if r])
-    st.session_state["pilar_activo"] = nodo_seleccionado
 
 if "audit_data" in st.session_state:
-    df = st.session_state["audit_data"]
-    st.dataframe(df, use_container_width=True)
-    fig, val_alpha, ret_iicu = calcular_rendimiento_y_alpha(df)
+    st.dataframe(st.session_state["audit_data"], use_container_width=True)
+    fig, val_alpha, ret_iicu = calcular_rendimiento_y_alpha(st.session_state["audit_data"])
     if fig:
         st.metric("ALFA DE SOBERANÍA", f"{val_alpha}%")
         st.plotly_chart(fig, use_container_width=True)
