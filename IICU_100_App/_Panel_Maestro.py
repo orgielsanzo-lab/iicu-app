@@ -147,8 +147,25 @@ def calcular_fpc(ticker):
         fpc_final = 100 * (1 - math.exp(-raw_score / 2))
 
         return round(fpc_final, 2)
-    except:
+    except Exception:
         return 0.0
+
+
+def calcular_rsi_wilder(close_series, window=14):
+    """Calcula el RSI utilizando la suavización exponencial exacta de Wilder."""
+    delta = close_series.diff()
+
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+
+    # Inicialización con EMA/Wilder (alpha = 1 / window)
+    avg_gain = gain.ewm(alpha=1 / window, min_periods=window, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / window, min_periods=window, adjust=False).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+
+    return rsi, avg_gain, avg_loss
 
 
 def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
@@ -202,7 +219,7 @@ def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
             ),
         )
         return fig, alpha, ret_iicu
-    except:
+    except Exception:
         return None, 0, 0
 
 
@@ -222,7 +239,7 @@ def auditoria_tecnica(ticker):
         sma50 = close.rolling(50).mean().iloc[-1]
         actual = close.iloc[-1]
 
-        # CÁLCULO RSI (Algoritmo Wilder Fiel a TradingView)
+        # CÁLCULO RSI (Algoritmo Wilder)
         rsi_series, avg_gain, avg_loss = calcular_rsi_wilder(close, window=14)
         rsi = rsi_series.iloc[-1]
 
@@ -288,7 +305,7 @@ def auditoria_tecnica(ticker):
             "Flujo": "💹" if obv_trend else "📉",
             "Estado": estado,
         }
-    except Exception as e:
+    except Exception:
         return None
 
 
