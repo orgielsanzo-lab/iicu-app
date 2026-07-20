@@ -222,19 +222,14 @@ def auditoria_tecnica(ticker):
         sma50 = close.rolling(50).mean().iloc[-1]
         actual = close.iloc[-1]
 
-        # CÁLCULO RSI (Estándar Wilder / SMMA con EWM)
-        delta = close.diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-
-        avg_gain = gain.ewm(alpha=1 / 14, adjust=False).mean()
-        avg_loss = loss.ewm(alpha=1 / 14, adjust=False).mean()
-
-        rs = avg_gain / avg_loss
-        rsi = (100 - (100 / (1 + rs))).iloc[-1]
+        # CÁLCULO RSI (Algoritmo Wilder Fiel a TradingView)
+        rsi_series, avg_gain, avg_loss = calcular_rsi_wilder(close, window=14)
+        rsi = rsi_series.iloc[-1]
 
         # OBV base asignado al dataframe
-        hist["OBV"] = (np.sign(close.diff()) * hist["Volume"]).fillna(0).cumsum()
+        hist["OBV"] = (
+            (np.sign(close.diff()) * hist["Volume"]).fillna(0).cumsum()
+        )
         obv_trend = (
             hist["OBV"].iloc[-1] > hist["OBV"].rolling(10).mean().iloc[-1]
         )
@@ -253,9 +248,11 @@ def auditoria_tecnica(ticker):
                 hist["Volume"].iloc[-1]
                 / hist["Volume"].rolling(20).mean().iloc[-1]
             )
-            rsi_prev = 100 - (
-                100 / (1 + (avg_gain.iloc[-3] / avg_loss.iloc[-3]))
-            )
+
+            # Divergencia calculada sobre los vectores de Wilder exactos
+            rs_prev = avg_gain.iloc[-3] / avg_loss.iloc[-3]
+            rsi_prev = 100 - (100 / (1 + rs_prev))
+
             div_rsi = rsi > rsi_prev
             div_prc = actual < close.iloc[-3]
 
@@ -291,7 +288,7 @@ def auditoria_tecnica(ticker):
             "Flujo": "💹" if obv_trend else "📉",
             "Estado": estado,
         }
-    except:
+    except Exception as e:
         return None
 
 
