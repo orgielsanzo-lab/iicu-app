@@ -108,15 +108,48 @@ if ticker:
             else:
                 st.markdown(f'<div class="report-box" style="border: 2px solid #FFEA00;"><h3>⚠️ {estado_censor}</h3></div>', unsafe_allow_html=True)
 
-            # --- GRÁFICO ---
+           # --- GRÁFICO ---
             fig = go.Figure()
-            # Histograma
+            
+            # Histograma del perfil de volumen (200d)
             typical_price_200 = (df_200['High'] + df_200['Low'] + df_200['Close']) / 3
             counts_200, bin_edges_200 = np.histogram(typical_price_200.values, bins=bins, weights=df_200['Volume'].values)
             
-            fig.add_trace(go.Bar(y=[(bin_edges_200[i] + bin_edges_200[i+1])/2 for i in range(len(counts_200))], x=counts_200, orientation='h', name='Perfil 200d', marker=dict(color='rgba(0, 255, 170, 0.12)')))
-            fig.add_trace(go.Scatter(x=[0, max(counts_200)], y=[precio_actual, precio_actual], mode='lines', name='Precio', line=dict(color='#FF3388', width=2)))
-            fig.add_trace(go.Scatter(x=[0, max(counts_200)], y=[poc_anual, poc_anual], mode='lines', name='POC Anual', line=dict(color='#00FFAA', width=2, dash='dash')))
+            fig.add_trace(go.Bar(
+                y=[(bin_edges_200[i] + bin_edges_200[i+1])/2 for i in range(len(counts_200))], 
+                x=counts_200, 
+                orientation='h', 
+                name='Perfil 200d', 
+                marker=dict(color='rgba(0, 255, 170, 0.12)')
+            ))
             
-            fig.update_layout(title=f"Distribución con {bins} Bins - {ticker}", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color="#e0e0e0"), height=450)
+            # Línea de Precio Actual
+            fig.add_trace(go.Scatter(
+                x=[0, max(counts_200)], y=[precio_actual, precio_actual], 
+                mode='lines', name=f'Precio (${precio_actual:.2f})', 
+                line=dict(color='#FF3388', width=2)
+            ))
+            
+            # Línea de POC Anual (200d)
+            fig.add_trace(go.Scatter(
+                x=[0, max(counts_200)], y=[poc_anual, poc_anual], 
+                mode='lines', name=f'POC Anual (${poc_anual:.2f})', 
+                line=dict(color='#00FFAA', width=2, dash='dash')
+            ))
+            
+            # --- NUEVA LÍNEA: POC LOCAL (20d) ---
+            fig.add_trace(go.Scatter(
+                x=[0, max(counts_200)], y=[poc_local, poc_local], 
+                mode='lines', name=f'POC Local 20d (${poc_local:.2f})', 
+                line=dict(color='#FFEA00', width=2, dash='dot')
+            ))
+            
+            fig.update_layout(
+                title=f"Distribución con {bins} Bins - {ticker}", 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                font=dict(color="#e0e0e0"), 
+                height=450,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
             st.plotly_chart(fig, use_container_width=True)
