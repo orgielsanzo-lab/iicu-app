@@ -1,6 +1,5 @@
 import math
 from datetime import datetime, timedelta
-import google.generativeai as genai
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -152,47 +151,6 @@ def calcular_fpc(ticker):
         return 0.0
 
 
-# --- [PROTOCOLO DE CENSOR] ---
-
-
-def censor_de_urano(pilar_actual, candidatos_externos):
-    propuestas_sustitucion = []
-
-    nodos_con_fpc = [
-        n for n in pilar_actual if n.get("FPC (Peso)") is not None
-    ]
-    if not nodos_con_fpc:
-        return []
-
-    peor_nodo = min(nodos_con_fpc, key=lambda x: x["FPC (Peso)"])
-
-    for aspirante in candidatos_externos:
-        if aspirante in [n["Sigla"] for n in pilar_actual]:
-            continue
-
-        fpc_aspirante = calcular_fpc(aspirante)
-
-        if (
-            fpc_aspirante > (peor_nodo["FPC (Peso)"] * 1.20)
-            or peor_nodo["FPC (Peso)"] < 10.0
-        ):
-            propuestas_sustitucion.append(
-                {
-                    "SALE": peor_nodo["Sigla"],
-                    "ENTRA": aspirante,
-                    "FPC_NUEVO": fpc_aspirante,
-                    "MOTIVO": (
-                        "Superioridad de Innovación"
-                        if fpc_aspirante > peor_nodo["FPC (Peso)"]
-                        else "Atrofia Estructural"
-                    ),
-                }
-            )
-            break
-
-    return propuestas_sustitucion
-
-
 def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
     try:
         benchmark = yf.Ticker(ticker_benchmark).history(period="1y")["Close"]
@@ -322,24 +280,7 @@ def auditoria_tecnica(ticker):
         return None
 
 
-# --- [III. CAPA 4: SENTENCIA DE URANO] ---
-
-
-def ejecutar_sentencia(row, prompt_manifiesto):
-    try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(
-            f"Analiza {row['Sigla']} basado en el manifiesto: {prompt_manifiesto}. Determina si hay Falla Estructural o Empresa Herida."
-        )
-        return response.text
-    except Exception as e:
-        if row["Estado"] in ["🔥 CRUCE DE URANO", "💎 SOBERANO"]:
-            return f"⚠️ [Soberanía Local Activa - Fallback]\n\nAUDITORÍA: El activo {row['Sigla']} ({row['Estado']}) presenta una Divergencia Soberana en su estructura. No se detectan fallas estructurales matemáticas. DIAGNÓSTICO: EMPRESA HERIDA - OPORTUNIDAD ESTRATÉGICA."
-        else:
-            return f"⚠️ [Soberanía Local Activa]\n\nAUDITORÍA TÉCNICA: {row['Sigla']} cumple el Cuadrante de Hierro. Estado actual: {row['Estado']}. DIAGNÓSTICO: VALIDACIÓN COMPLETA."
-
-
-# --- [IV. INTERFAZ IICU-100 v3.8.0] ---
+# --- [III. INTERFAZ IICU-100 v3.8.0] ---
 st.set_page_config(page_title="IICU-100 Soberanía", layout="wide")
 
 st.markdown(
@@ -354,11 +295,6 @@ st.markdown(
 )
 
 st.title("🏛️ IICU-100: INFRAESTRUCTURA DEL FUTURO")
-st.sidebar.header("CONFIGURACIÓN MAESTRA")
-api_key = st.sidebar.text_input("Clave Oráculo", type="password")
-
-if api_key:
-    genai.configure(api_key=api_key)
 
 nodo_seleccionado = st.selectbox(
     "Seleccionar Nodo de Poder", list(PILARES.keys())
@@ -398,54 +334,3 @@ if "audit_data" in st.session_state:
                 delta_color="normal",
             )
             st.plotly_chart(fig_comp, use_container_width=True)
-
-    st.markdown("---")
-
-    # --- [ INTEGRACIÓN DEL CENSOR DE URANO ] ---
-    st.markdown("---")
-    aspirantes_globales = ["OKLO", "ASTS", "RKLB", "VKTX", "VRT", "ARM", "PLTR"]
-
-    resultados_para_censor = df.to_dict("records")
-    propuestas = censor_de_urano(resultados_para_censor, aspirantes_globales)
-
-    if propuestas:
-        st.subheader("🛰️ Sentencia del Censor de Urano")
-        for p in propuestas:
-            st.warning(
-                f"⚠️ **REBALANCEO SUGERIDO:** Sacar `{p['SALE']}` e integrar `{p['ENTRA']}`"
-            )
-            st.info(
-                f"**Razón:** {p['MOTIVO']} | **FPC del Aspirante:** {p['FPC_NUEVO']}"
-            )
-    else:
-        st.success("✅ El Censor no detecta anomalías. Estructura óptima.")
-    st.markdown("---")
-
-    # Sentencias automáticas extendidas a los nuevos estados
-    soberanos = df[
-        df["Estado"].isin(
-            [
-                "💎 SOBERANO",
-                "🔥 CRUCE DE URANO",
-                "⚡ OLLA DE PRESIÓN",
-                "🚀 MOMENTUM TEMPRANO",
-                "🛡️ SACUDIDA INSTITUCIONAL",
-            ]
-        )
-    ]
-
-    if not soberanos.empty:
-        st.markdown("### ⚖️ SENTENCIA DE URANO")
-        for index, row in soberanos.iterrows():
-            with st.expander(f"SENTENCIA: {row['Sigla']} ({row['Estado']})"):
-                if st.button(
-                    f"INVOCAR INTÉRPRETE: {row['Sigla']}",
-                    key=f"btn_{row['Sigla']}",
-                ):
-                    veredicto = ejecutar_sentencia(
-                        row,
-                        "Pilar 2 es Corazón, Pilar 5 es Urano. Buscar Falla Estructural y evaluar potencial de acumulación técnica.",
-                    )
-                    st.write(veredicto)
-    else:
-        st.info("No se detectan activos en zonas de despegue o acumulación.")
