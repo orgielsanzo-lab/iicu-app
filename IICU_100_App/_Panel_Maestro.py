@@ -216,23 +216,33 @@ def auditoria_tecnica(ticker):
         if len(hist) < 200:
             return None
 
+        # 1. Indicadores Base
         close = hist["Close"]
         sma200 = close.rolling(200).mean().iloc[-1]
         sma50 = close.rolling(50).mean().iloc[-1]
         actual = close.iloc[-1]
 
+        # CÁLCULO RSI (Estándar Wilder / SMMA con EWM)
         delta = close.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs)).iloc[-1]
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
 
-        obv = (np.sign(close.diff()) * hist["Volume"]).fillna(0).cumsum()
-        obv_trend = obv.iloc[-1] > obv.rolling(10).mean().iloc[-1]
+        avg_gain = gain.ewm(alpha=1 / 14, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1 / 14, adjust=False).mean()
+
+        rs = avg_gain / avg_loss
+        rsi = (100 - (100 / (1 + rs))).iloc[-1]
+
+        # OBV base asignado al dataframe
+        hist["OBV"] = (np.sign(close.diff()) * hist["Volume"]).fillna(0).cumsum()
+        obv_trend = (
+            hist["OBV"].iloc[-1] > hist["OBV"].rolling(10).mean().iloc[-1]
+        )
 
         fpc_valor = calcular_fpc(ticker)
-
         sma200_ok = actual > sma200
+
+        # Lógica de Clasificación Jerárquica
         es_soberano = (
             sma200_ok and (sma50 > sma200) and (rsi < 35) and obv_trend
         )
@@ -240,14 +250,19 @@ def auditoria_tecnica(ticker):
         ignicion = False
         if es_soberano:
             vol_rel = (
-                hist["Volume"].iloc[-1] / hist["Volume"].rolling(20).mean().iloc[-1]
+                hist["Volume"].iloc[-1]
+                / hist["Volume"].rolling(20).mean().iloc[-1]
             )
-            div_rsi = rsi > 100 - (100 / (1 + (gain / loss)).iloc[-3])
+            rsi_prev = 100 - (
+                100 / (1 + (avg_gain.iloc[-3] / avg_loss.iloc[-3]))
+            )
+            div_rsi = rsi > rsi_prev
             div_prc = actual < close.iloc[-3]
+
             if vol_rel > 1.8 or (div_rsi and div_prc):
                 ignicion = True
 
-        # Asignación Jerárquica de Estados
+        # Asignación de Estados
         if ignicion:
             estado = "🔥 CRUCE DE URANO"
         elif es_soberano:
