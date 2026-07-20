@@ -25,8 +25,7 @@ DICCIONARIO_ESTADOS = {
     "📡 RADAR": {"Definición": "Activo sin anomalías de acumulación o momentum detectadas.", "Métrica": "Estructura neutral. No apto para asignación de capital."}
 
 def calcular_fpc(ticker):
-    try:
-        asset = yf.Ticker(ticker)
+    try:asset = yf.Ticker(ticker)
         info = asset.info
         rd = info.get("researchDevelopment")
         if rd is None or rd == 0:
@@ -43,8 +42,7 @@ def calcular_fpc(ticker):
         return 0.0
 
 def calcular_rendimiento_y_alpha(df_pilar, ticker_benchmark="SPY"):
-    try:
-        benchmark = yf.Ticker(ticker_benchmark).history(period="1y")["Close"]
+    try:benchmark = yf.Ticker(ticker_benchmark).history(period="1y")["Close"]
         if benchmark.empty:
             return None, 0, 0
         bench_norm = (benchmark / benchmark.iloc[0]) * 100
