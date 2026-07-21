@@ -308,24 +308,28 @@ def auditoria_tecnica(ticker):
                 ignicion = True
 
         # Asignación de Estados
-        if ignicion:
-            estado = "🔥 CRUCE DE URANO"
-        elif es_soberano:
-            estado = "💎 SOBERANO"
-        else:
-            if obv_trend:
-                if fpc_valor > 95.0000 and 35.00 <= rsi <= 48.00:
-                    estado = "⚡ OLLA DE PRESIÓN"
-                elif (
-                    sma200_ok and fpc_valor > 90.0000 and 60.00 <= rsi <= 68.00
-                ):
-                    estado = "🚀 MOMENTUM TEMPRANO"
-                elif sma200_ok and fpc_valor > 85.0000 and rsi < 36.00:
-                    estado = "🛡️ SACUDIDA INSTITUCIONAL"
-                else:
-                    estado = "📡 RADAR"
-            else:
-                estado = "📡 RADAR"
+ # --- RECALIBRACIÓN DE LÓGICA DE ESTADOS EN auditoria_tecnica() ---
+
+# 1. Indicadores de Dinámica
+obv_acumulando = hist["OBV"].iloc[-1] >= hist["OBV"].iloc[-5]  # Tendencia de 5 días más reactiva
+
+# 2. Asignación de Estados con Umbrales Realistas
+if ignicion:
+    estado = "🔥 CRUCE DE URANO"
+elif es_soberano:
+    estado = "💎 SOBERANO"
+else:
+    # Calibración FPC basada en la distribución real (70.0+ es excelente)
+    if fpc_valor >= 70.0 and 30.0 <= rsi <= 50.0:
+        estado = "⚡ OLLA DE PRESIÓN"
+    elif sma200_ok and fpc_valor >= 65.0 and 50.0 < rsi <= 68.0 and obv_trend:
+        estado = "🚀 MOMENTUM TEMPRANO"
+    elif sma200_ok and fpc_valor >= 60.0 and rsi < 35.0:
+        estado = "🛡️ SACUDIDA INSTITUCIONAL"
+    elif obv_acumulando and sma200_ok:
+        estado = "🛠️ ACUMULACIÓN SILENCIOSA"
+    else:
+        estado = "📡 RADAR"
 
         return {
             "Sigla": ticker,
