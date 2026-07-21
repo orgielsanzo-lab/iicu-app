@@ -297,7 +297,7 @@ def auditoria_tecnica(ticker):
                 / hist["Volume"].rolling(20).mean().iloc[-1]
             )
 
-            # Divergencia calculada sobre los vectores de Wilder exactos
+            # Divergencia calculada sobre los vectores de Wilder
             rs_prev = avg_gain.iloc[-3] / avg_loss.iloc[-3]
             rsi_prev = 100 - (100 / (1 + rs_prev))
 
@@ -307,29 +307,32 @@ def auditoria_tecnica(ticker):
             if vol_rel > 1.8 or (div_rsi and div_prc):
                 ignicion = True
 
-        # Asignación de Estados
- # --- RECALIBRACIÓN DE LÓGICA DE ESTADOS EN auditoria_tecnica() ---
+        # --- [RECALIBRACIÓN DINÁMICA DE ESTADOS] ---
+        obv_acumulando = (
+            hist["OBV"].iloc[-1] >= hist["OBV"].iloc[-5]
+        )  # Tendencia de 5 días más reactiva
 
-# 1. Indicadores de Dinámica
-obv_acumulando = hist["OBV"].iloc[-1] >= hist["OBV"].iloc[-5]  # Tendencia de 5 días más reactiva
-
-# 2. Asignación de Estados con Umbrales Realistas
-if ignicion:
-    estado = "🔥 CRUCE DE URANO"
-elif es_soberano:
-    estado = "💎 SOBERANO"
-else:
-    # Calibración FPC basada en la distribución real (70.0+ es excelente)
-    if fpc_valor >= 70.0 and 30.0 <= rsi <= 50.0:
-        estado = "⚡ OLLA DE PRESIÓN"
-    elif sma200_ok and fpc_valor >= 65.0 and 50.0 < rsi <= 68.0 and obv_trend:
-        estado = "🚀 MOMENTUM TEMPRANO"
-    elif sma200_ok and fpc_valor >= 60.0 and rsi < 35.0:
-        estado = "🛡️ SACUDIDA INSTITUCIONAL"
-    elif obv_acumulando and sma200_ok:
-        estado = "🛠️ ACUMULACIÓN SILENCIOSA"
-    else:
-        estado = "📡 RADAR"
+        if ignicion:
+            estado = "🔥 CRUCE DE URANO"
+        elif es_soberano:
+            estado = "💎 SOBERANO"
+        else:
+            # Calibración FPC basada en la distribución real
+            if fpc_valor >= 70.0 and 30.0 <= rsi <= 50.0:
+                estado = "⚡ OLLA DE PRESIÓN"
+            elif (
+                sma200_ok
+                and fpc_valor >= 65.0
+                and 50.0 < rsi <= 68.0
+                and obv_trend
+            ):
+                estado = "🚀 MOMENTUM TEMPRANO"
+            elif sma200_ok and fpc_valor >= 60.0 and rsi < 35.0:
+                estado = "🛡️ SACUDIDA INSTITUCIONAL"
+            elif obv_acumulando and sma200_ok:
+                estado = "🛠️ ACUMULACIÓN SILENCIOSA"
+            else:
+                estado = "📡 RADAR"
 
         return {
             "Sigla": ticker,
@@ -340,6 +343,7 @@ else:
             "Flujo": "💹" if obv_trend else "📉",
             "Estado": estado,
         }
+
     except Exception:
         return None
 
