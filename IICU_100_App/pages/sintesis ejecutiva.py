@@ -1,104 +1,167 @@
-import streamlit as st
+import math
+from typing import Any, Dict
+import numpy as np
 
-def generar_reporte_sintetizado_v5(datos_panel, datos_censor):
+
+def interpretar_fisica_movimiento_v3(
+    precio: float,
+    poc_anual: float,
+    poc_local: float,
+    rvol: float,
+    obv_slope: float,
+    sma200_ok: bool,
+    fpc: float = 50.0,
+    rsi: float = 50.0,
+    ticker: str = "ASSET",
+) -> Dict[str, Any]:
+    """Motor Integrado de Decisión Cuantitativa - IICU-100 v6.0.
+
+    Sintetiza la microestructura de mercado (Volumen/POCs) y el análisis de
+    dinámica de precios en una instrucción operativa puntual.
     """
-    Motor Unificado IICU-100 v5.1 (Limpio y Optimizado)
-    """
-    precio = datos_panel["Precio"]
-    rsi = datos_panel.get("RSI", 50.0)
-    sma200_ok = datos_panel["SMA200_OK"]
-    obv_creciente = datos_panel["OBV_Creciente"]
-    fpc = datos_panel.get("FPC", 50.0)
+    # 1. Cálculos de Vectores de Gravedad
+    delta_poc200 = ((precio - poc_anual) / poc_anual) * 100.0
+    delta_poc20 = ((precio - poc_local) / poc_local) * 100.0
+    gap_pocs = abs((poc_anual - poc_local) / poc_anual) * 100.0
+    obv_creciente = obv_slope > 0
 
-    poc_200 = datos_censor["POC_200"]
-    poc_20 = datos_censor["POC_20"]
-    rvol = datos_censor["RVOL"]
+    # Punto Rígido de Invalidación (Soporte Estructural del 1.5% bajo el POC más bajo)
+    stop_invalidacion = round(min(poc_anual, poc_local) * 0.985, 2)
 
-    delta_poc200 = ((precio - poc_200) / poc_200) * 100
-    gap_pocs = abs((poc_200 - poc_20) / poc_200) * 100
-    stop_invalidacion = round(min(poc_200, poc_20) * 0.985, 2)
+    # Variables de Salida
+    veredicto = ""
+    nivel_riesgo = ""
+    accion_sugerida = ""
+    tesis_tecnica = ""
 
-    if precio > poc_200:
-        if delta_poc200 > 12.0 and rvol < 1.20:
-            veredicto = "🟡 TRAMPA DE AIRE / SOBREEXTENSIÓN SANGUÍNEA"
-            nivel_riesgo = "ALTO"
-            accion = "NO COMPRAR. Tomar beneficios parciales si se está dentro."
-            tesis = f"Sobreextensión del {delta_poc200:.2f}% respecto al POC Anual (${poc_200:.2f}) sin respaldo de volumen ({rvol:.2f}x)."
-        elif rvol >= 1.20 and obv_creciente:
-            veredicto = "🔥 IGNICIÓN Y ESCAPE CONFIRMADO"
-            nivel_riesgo = "MEDIO (Por velocidad)"
-            accion = "COMPRA DE MOMENTUM. Entrar con órdenes límite."
-            tesis = f"Volumen de confirmación ({rvol:.2f}x) e impulso de flujo (OBV) respaldan la ruptura sobre los ${poc_200:.2f}."
-        elif delta_poc200 <= 5.0 and sma200_ok and fpc >= 65.0:
+    # 2. Árbol Integrado de Decisión (Física del Flujo)
+
+    # --- ESCENARIO A: PRECIO BAJO EL EQUILIBRIO ANUAL (ZONA DE DESCUENTO) ---
+    if precio < poc_anual:
+        # A1. Absorción Institucional / Giro en Base
+        if precio >= (poc_local * 0.985) and rvol >= 1.20 and obv_creciente:
+            veredicto = "🛠️ GIRO INSTITUCIONAL DETECTADO (ABSORCIÓN EN BASE)"
+            nivel_riesgo = "BAJO (Asimetría Positiva Favorable)"
+            accion_sugerida = (
+                f"COMPRA ESCALONADA. Entrar con 50% en ${precio:.2f}. "
+                f"Añadir el 50% restante al confirmar ruptura de ${poc_anual:.2f}."
+            )
+            tesis_tecnica = (
+                f"Absorción activa bajo el precio de equilibrio anual (${poc_anual:.2f}). "
+                f"Un RVOL de {rvol:.2f}x con flujo monetario positivo (OBV creciente) confirma "
+                f"acumulación sobre el POC local de 20d (${poc_local:.2f})."
+            )
+
+        # A2. Distribución / Cascada de Liquidez
+        elif rvol >= 1.20 and not obv_creciente:
+            veredicto = "🛑 CASCADA DE LIQUIDEZ / DISTRIBUCIÓN AGRESIVA"
+            nivel_riesgo = "CRÍTICO"
+            accion_sugerida = (
+                "PROHIBIDA LA ENTRADA. Si está dentro, liquidar posición o ejecutar stop "
+                "inmediatamente."
+            )
+            tesis_tecnica = (
+                f"Venta institucional activa. El activo perfora niveles clave bajo el POC Anual (${poc_anual:.2f}) "
+                f"con volumen de presión ({rvol:.2f}x) sin demanda consumiendo la oferta."
+            )
+
+        # A3. Rebote de Inercia / Atrapado en Rango
+        elif precio > poc_local and not sma200_ok:
+            veredicto = "⏳ SANDWICH DE GRAVEDAD / REBOTE DE INERCIA"
+            nivel_riesgo = "MEDIO-ALTO"
+            accion_sugerida = (
+                f"OPERACIÓN TÁCTICA DE CORTO PLAZO. Tomar ganancias parcialmente conforme "
+                f"el precio se acerque al techo del POC Anual (${poc_anual:.2f})."
+            )
+            tesis_tecnica = (
+                f"El precio está comprimido entre el soporte local (${poc_local:.2f}) "
+                f"y la resistencia mayor de 200 días (${poc_anual:.2f}). Sin tendencia estructural."
+            )
+
+        # A4. Inercia Bajista Pasiva
+        else:
+            veredicto = "⏳ INERCIA BAJISTA PASIVA"
+            nivel_riesgo = "MEDIO-ALTO"
+            accion_sugerida = (
+                "MANTENER EN RADAR. No asignar capital hasta ver anomalía de volumen."
+            )
+            tesis_tecnica = (
+                f"Desgastante caída por falta de compradores (RVOL {rvol:.2f}x insuficiente). "
+                f"Sin volumen comprador no hay efecto resorte."
+            )
+
+    # --- ESCENARIO B: PRECIO SOBRE EL EQUILIBRIO ANUAL (ZONA DE EXPANSIÓN) ---
+    else:
+        # B1. Acumulación Comprimida / Zona Segura
+        if delta_poc200 <= 5.0 and sma200_ok and fpc >= 60.0:
             veredicto = "🟢 COMPRESIÓN EN ZONA DE ACUMULACIÓN SEGURA"
             nivel_riesgo = "BAJO"
-            accion = f"COMPRA TÁCTICA AUTORIZADA. Entrada directa con Stop rígido en ${stop_invalidacion}."
-            tesis = f"El activo cotiza a {delta_poc200:.2f}% de su centro de gravedad (${poc_200:.2f})."
+            accion_sugerida = (
+                f"COMPRA TÁCTICA AUTORIZADA. Entrada directa en ${precio:.2f}. "
+                f"Stop rígido en ${stop_invalidacion}."
+            )
+            tesis_tecnica = (
+                f"El activo cotiza a solo {delta_poc200:.2f}% de su centro de gravedad (${poc_anual:.2f}). "
+                f"Respaldado por tendencia SMA200 y métricas fundamentales sólidas (FPC {fpc:.1f})."
+            )
+
+        # B2. Ruptura y Momentum Confirmado
+        elif (
+            5.0 < delta_poc200 <= 12.0
+            and rvol >= 1.20
+            and obv_creciente
+            and rsi <= 68.0
+        ):
+            veredicto = "🔥 IGNICIÓN Y ESCAPE CONFIRMADO"
+            nivel_riesgo = "MEDIO (Inercia Rápida)"
+            accion_sugerida = (
+                "COMPRA DE MOMENTUM. Acompañar con órdenes límite. "
+                "No perseguir si la extensión supera el 12% respecto al POC Anual."
+            )
+            tesis_tecnica = (
+                f"Inyección de liquidez confirmada con RVOL de {rvol:.2f}x y OBV en expansión. "
+                f"La rotación valida la ruptura por encima del precio de equilibrio."
+            )
+
+        # B3. Sobreextensión / Trampa de Aire
+        elif delta_poc200 > 12.0 or (delta_poc200 > 5.0 and rvol < 1.0):
+            veredicto = "🟡 TRAMPA DE AIRE / SOBREEXTENSIÓN SANGUÍNEA"
+            nivel_riesgo = "ALTO"
+            accion_sugerida = (
+                "NO COMPRAR. Prohibido abrir nuevas posiciones. "
+                "Ajustar trailing stop o tomar beneficios parciales."
+            )
+            tesis_tecnica = (
+                f"El precio está sobreextendido un +{delta_poc200:.2f}% de su valor justo (${poc_anual:.2f}) "
+                f"con volumen decreciente ({rvol:.2f}x). Elevado riesgo de regresión abrupta a la media."
+            )
+
+        # B4. Consolidación Genérica
         else:
-            veredicto = "📡 CONSOLIDACIÓN POR ENCIMA DE SOPORTE"
+            veredicto = "📡 CONSOLIDACIÓN EN RANGO"
             nivel_riesgo = "MEDIO"
-            accion = "MANTENER O MONITOREAR."
-            tesis = f"El activo oscila sobre su zona de valor (${poc_200:.2f}) sin flujo institucional agresivo actual."
-    else:
-        if precio > poc_20:
-            if not sma200_ok and rvol < 1.20:
-                veredicto = "⏳ SANDWICH DE GRAVEDAD / REBOTE DE INERCIA"
-                nivel_riesgo = "MEDIO-ALTO"
-                accion = f"VENTA EN REBOTE. Tomar ganancias conforme se acerque a ${poc_200:.2f}."
-                tesis = f"El activo está atrapado entre el piso local (${poc_20:.2f}) y la resistencia anual (${poc_200:.2f})."
-            else:
-                veredicto = "🛠️ RECUPERACIÓN EN DESARROLLO"
-                nivel_riesgo = "MEDIO"
-                accion = "COMPRA ESCALONADA TÁCTICA."
-                tesis = f"El precio ha superado el POC local (${poc_20:.2f}) intentando cerrar la brecha con el POC Anual (${poc_200:.2f})."
-        else:
-            if rvol >= 1.20 and not obv_creciente:
-                veredicto = "🛑 CASCADA DE LIQUIDEZ / DISTRIBUCIÓN AGRESIVA"
-                nivel_riesgo = "CRÍTICO"
-                accion = "PROHIBIDA LA ENTRADA. Salir de posiciones de inmediato."
-                tesis = f"Venta institucional activa. Perforación bajo el POC anual con volumen alto ({rvol:.2f}x)."
-            elif rvol >= 1.20 and obv_creciente:
-                veredicto = "🛠️ GIRO INSTITUCIONAL DETECTADO (OLLA RECONSTRUIDA)"
-                nivel_riesgo = "BAJO (Asimetría Positiva)"
-                accion = f"COMPRA ESCALONADA AUTORIZADA. 50% en ${precio:.2f} y 50% al romper ${poc_200:.2f}."
-                tesis = f"Absorción activa. RVOL de {rvol:.2f}x con OBV creciente frena la caída sobre el POC local (${poc_20:.2f})."
-            else:
-                veredicto = "⏳ INERCIA BAJISTA PASIVA"
-                nivel_riesgo = "MEDIO-ALTO"
-                accion = "PERMANECER EN RADAR."
-                tesis = "Goteo bajista por falta de compradores. Sin RVOL > 1.2x no hay resorte comprador."
+            accion_sugerida = (
+                "PERMANECER NEUTRO. Monitorear compresión o catalizadores de volumen."
+            )
+            tesis_tecnica = (
+                f"Movimiento dentro del rango dinámico sin anomalías operativas claras. "
+                f"Separación de POCs en {gap_pocs:.2f}%."
+            )
 
+    # 3. Estructuración del Output Unificado
     return {
+        "ticker": ticker,
+        "precio": round(precio, 2),
         "veredicto": veredicto,
-        "riesgo": nivel_riesgo,
-        "accion": accion,
-        "tesis": tesis,
-        "stop": stop_invalidacion,
-        "gap_pocs": round(gap_pocs, 2)
+        "nivel_riesgo": nivel_riesgo,
+        "accion_sugerida": accion_sugerida,
+        "tesis_tecnica": tesis_tecnica,
+        "stop_invalidacion": stop_invalidacion,
+        "metricas_clave": {
+            "delta_poc_anual_pct": round(delta_poc200, 2),
+            "delta_poc_local_pct": round(delta_poc20, 2),
+            "gap_pocs_pct": round(gap_pocs, 2),
+            "rvol": round(rvol, 2),
+            "obv_creciente": obv_creciente,
+        },
     }
-
-# --- RENDERIZADO PRINCIPAL DE STREAMLIT ---
-def render_sintesis_ejecutiva(datos_panel, datos_censor):
-    """
-    Función de renderizado para conectar directamente con la UI.
-    """
-    res = generar_reporte_sintetizado_v5(datos_panel, datos_censor)
-
-    st.title("Síntesis Ejecutiva IICU-100")
-    st.subheader(res["veredicto"])
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Nivel de Riesgo:** {res['riesgo']}")
-        st.write(f"**Acción Sugerida:** {res['accion']}")
-    with col2:
-        st.warning(f"**Stop de Invalidación:** ${res['stop']}")
-        st.caption(f"Brecha entre POCs (Gap): {res['gap_pocs']}%")
-        
-    st.info(f"**Tesis Técnica:** {res['tesis']}")
-
-# Bloque de ejecución local autónoma (Si corres el archivo directo)
-if __name__ == "__main__":
-    datos_panel_test = {"Precio": 105.0, "RSI": 45.0, "SMA200_OK": True, "OBV_Creciente": True, "FPC": 70.0}
-    datos_censor_test = {"POC_200": 100.0, "POC_20": 98.0, "RVOL": 1.35}
-    render_sintesis_ejecutiva(datos_panel_test, datos_censor_test)
