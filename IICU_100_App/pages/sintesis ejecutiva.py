@@ -1,7 +1,9 @@
 import streamlit as st
 
-# 1. Definición del Motor
 def generar_reporte_sintetizado_v5(datos_panel, datos_censor):
+    """
+    Motor Unificado IICU-100 v5.1 (Limpio y Optimizado)
+    """
     precio = datos_panel["Precio"]
     rsi = datos_panel.get("RSI", 50.0)
     sma200_ok = datos_panel["SMA200_OK"]
@@ -75,16 +77,28 @@ def generar_reporte_sintetizado_v5(datos_panel, datos_censor):
         "gap_pocs": round(gap_pocs, 2)
     }
 
-# 2. Datos de Prueba (Simulación)
-datos_panel_test = {"Precio": 105.0, "RSI": 45.0, "SMA200_OK": True, "OBV_Creciente": True, "FPC": 70.0}
-datos_censor_test = {"POC_200": 100.0, "POC_20": 98.0, "RVOL": 1.35}
+# --- RENDERIZADO PRINCIPAL DE STREAMLIT ---
+def render_sintesis_ejecutiva(datos_panel, datos_censor):
+    """
+    Función de renderizado para conectar directamente con la UI.
+    """
+    res = generar_reporte_sintetizado_v5(datos_panel, datos_censor)
 
-# 3. Ejecución y Renderizado en Streamlit
-res = generar_reporte_sintetizado_v5(datos_panel_test, datos_censor_test)
+    st.title("Síntesis Ejecutiva IICU-100")
+    st.subheader(res["veredicto"])
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Nivel de Riesgo:** {res['riesgo']}")
+        st.write(f"**Acción Sugerida:** {res['accion']}")
+    with col2:
+        st.warning(f"**Stop de Invalidación:** ${res['stop']}")
+        st.caption(f"Brecha entre POCs (Gap): {res['gap_pocs']}%")
+        
+    st.info(f"**Tesis Técnica:** {res['tesis']}")
 
-st.title("Síntesis Ejecutiva IICU-100")
-st.subheader(res["veredicto"])
-st.write(f"**Nivel de Riesgo:** {res['riesgo']}")
-st.write(f"**Acción Sugerida:** {res['accion']}")
-st.info(f"**Tesis Técnica:** {res['tesis']}")
-st.warning(f"**Stop de Invalidación:** ${res['stop']}")
+# Bloque de ejecución local autónoma (Si corres el archivo directo)
+if __name__ == "__main__":
+    datos_panel_test = {"Precio": 105.0, "RSI": 45.0, "SMA200_OK": True, "OBV_Creciente": True, "FPC": 70.0}
+    datos_censor_test = {"POC_200": 100.0, "POC_20": 98.0, "RVOL": 1.35}
+    render_sintesis_ejecutiva(datos_panel_test, datos_censor_test)
